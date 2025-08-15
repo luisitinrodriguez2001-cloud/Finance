@@ -495,7 +495,7 @@ function DebtPayoff() {
     return Math.max(0.02 * b, 25); // 2% or $25
   };
 
-  const simulate = method => {
+  const simulate = (method, extraAmt = 0) => {
     let rows = debts.map(d => ({
       ...d,
       balance: +(d.balance || 0),
@@ -508,7 +508,7 @@ function DebtPayoff() {
     while (rows.length && month < 3600) {
       month++;
       rows.sort((a, b) => method === 'Avalanche' ? b.apr - a.apr || a.balance - b.balance : a.balance - b.balance || b.apr - a.apr);
-      let budget = rows.reduce((s, d) => s + d.min, 0) + Math.max(0, extra || 0);
+      let budget = rows.reduce((s, d) => s + d.min, 0) + Math.max(0, extraAmt);
       for (const d of rows) {const i = monthlyRate(d.apr),interest = d.balance * i;d.balance += interest;totalInterest += interest;}
       for (const d of rows) {const pay = Math.min(budget > 0 ? d.min : 0, d.balance);d.balance -= pay;budget -= pay;}
       for (const d of rows) {if (budget <= 0) break;const pay = Math.min(budget, d.balance);d.balance -= pay;budget -= pay;}
@@ -518,8 +518,20 @@ function DebtPayoff() {
     return { months: month, totalInterest, timeline };
   };
 
-  const simAvalanche = useMemo(() => simulate('Avalanche'), [debts, extra]);
-  const simSnowball = useMemo(() => simulate('Snowball'), [debts, extra]);
+  const simAvalancheBase = useMemo(() => simulate('Avalanche', 0), [debts]);
+  const simSnowballBase = useMemo(() => simulate('Snowball', 0), [debts]);
+  const simAvalancheExtra = useMemo(() => simulate('Avalanche', extra || 0), [debts, extra]);
+  const simSnowballExtra = useMemo(() => simulate('Snowball', extra || 0), [debts, extra]);
+
+  const savingsAvalanche = useMemo(() => ({
+    months: simAvalancheBase.months - simAvalancheExtra.months,
+    interest: simAvalancheBase.totalInterest - simAvalancheExtra.totalInterest
+  }), [simAvalancheBase, simAvalancheExtra]);
+
+  const savingsSnowball = useMemo(() => ({
+    months: simSnowballBase.months - simSnowballExtra.months,
+    interest: simSnowballBase.totalInterest - simSnowballExtra.totalInterest
+  }), [simSnowballBase, simSnowballExtra]);
 
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -528,25 +540,17 @@ function DebtPayoff() {
     if (!window.Chart || !canvasRef.current) return;
     try {
       const ctx = canvasRef.current.getContext('2d');
-      const labels = simAvalanche.timeline.map(t => t.month);
-      const data = simAvalanche.timeline.map(t => Math.round(t.remaining));
+      const labels = simAvalancheBase.timeline.map(t => t.month);
+      const data = simAvalancheBase.timeline.map(t => Math.round(t.remaining));
       chartRef.current = new Chart(ctx, { type: 'line',
         data: { labels, datasets: [{ data, borderColor: '#ef4444', fill: false, tension: .15, pointRadius: 0 }] },
         options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => money0(v) } } } } });
 
     } catch (err) {console.warn('Debt chart skipped:', err);}
-  }, [simAvalanche.timeline]);
+  }, [simAvalancheBase.timeline]);
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Debt Payoff" }, /*#__PURE__*/
-
-    React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
-    React.createElement("span", { className: "ml-auto" }, /*#__PURE__*/
-    React.createElement("label", { className: "mr-2 text-slate-600" }, "Extra monthly"), /*#__PURE__*/
-    React.createElement(CurrencyInput, { value: extra, onChange: setExtra, placeholder: money0(0) }))), /*#__PURE__*/
-
-
-
 
     React.createElement("div", { className: "grid sm:grid-cols-4 gap-2 text-xs font-medium text-slate-500 mt-3" }, /*#__PURE__*/
     React.createElement("div", null, "Debt"), /*#__PURE__*/React.createElement("div", null, "Balance"), /*#__PURE__*/React.createElement("div", null, "APR"), /*#__PURE__*/React.createElement("div", null, "Min. Payment")), /*#__PURE__*/
@@ -576,10 +580,16 @@ function DebtPayoff() {
     React.createElement("canvas", { ref: canvasRef, height: "180" })), /*#__PURE__*/
 
     React.createElement("div", { className: "grid sm:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Avalanche"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simAvalanche.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simAvalanche.totalInterest), " interest"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-1" }, "Focus highest APR first — mathematically most efficient.")), /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Snowball"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simSnowball.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simSnowball.totalInterest), " interest"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-1" }, "Focus smallest balance first — faster psychological wins."))),
-
-    !simAvalanche.timeline.length && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Add at least one debt with a balance to simulate.")));
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Avalanche"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simAvalancheBase.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simAvalancheBase.totalInterest), " interest"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-1" }, "Focus highest APR first — mathematically most efficient.")), /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Snowball"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simSnowballBase.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simSnowballBase.totalInterest), " interest"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-1" }, "Focus smallest balance first — faster psychological wins."))), /*#__PURE__*/
+    React.createElement("div", { className: "mt-4" }, /*#__PURE__*/
+    React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
+    React.createElement("span", { className: "ml-auto" }, /*#__PURE__*/
+    React.createElement("label", { className: "mr-2 text-slate-600" }, "Extra monthly"), /*#__PURE__*/React.createElement(CurrencyInput, { value: extra, onChange: setExtra, placeholder: money0(0) }))),
+    extra > 0 && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Avalanche + extra"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simAvalancheExtra.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simAvalancheExtra.totalInterest), " interest"), /*#__PURE__*/React.createElement("div", { className: "text-xs font-bold mt-1" }, `Saved ${savingsAvalanche.months} mo & ${money0(savingsAvalanche.interest)} interest`)), /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Snowball + extra"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simSnowballExtra.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simSnowballExtra.totalInterest), " interest"), /*#__PURE__*/React.createElement("div", { className: "text-xs font-bold mt-1" }, `Saved ${savingsSnowball.months} mo & ${money0(savingsSnowball.interest)} interest`)))),
+    !simAvalancheBase.timeline.length && React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Add at least one debt with a balance to simulate.")));
 
 
 }
@@ -1125,6 +1135,207 @@ const CARDS = [
 { id: 'tax', title: 'Taxes (2025)', why: 'Approximate federal and state income taxes with current brackets.' },
 { id: 'data', title: 'Data Sources', why: 'Load open ZIP-based data like home values to prefill placeholders.' }];
 
+const FUN_FACTS = {
+  mortgage: [
+    'The word “mortgage” comes from Old French meaning “dead pledge.”',
+    'Making biweekly payments can shave years off a 30-year mortgage.',
+    'Paying extra principal early saves more interest than later payments.',
+    'The first modern mortgage loans appeared in the 19th century.',
+    'In many countries a 30-year fixed-rate loan is unique to the U.S.',
+    'Paying one extra monthly payment per year can cut a 30-year mortgage to about 25 years.',
+    'FHA loans often require as little as 3.5% down.',
+    'Your mortgage payment typically includes principal, interest, taxes, and insurance (PITI).',
+    'Some mortgages allow recasting after a large principal payment.',
+    'The 15-year mortgage usually has lower rates than the 30-year.',
+    'Private mortgage insurance (PMI) can be canceled once you have 20% equity.',
+    'Adjustable-rate mortgages usually have a fixed period before rates adjust.',
+    'The 2008 housing crisis was triggered by subprime mortgage defaults.',
+    'Mortgages in Denmark can sometimes have negative interest rates.',
+    'Early payoff penalties are less common today than in decades past.',
+    'A mortgage note is a legal document pledging the property as collateral.',
+    'In many U.S. states mortgages are non-recourse, meaning lenders can only take the house.',
+    'VA loans for veterans often require no down payment.',
+    'Mortgage-backed securities bundle many loans into investment products.',
+    "Some buyers 'house hack' by renting spare rooms to help cover the mortgage."
+  ],
+  compound: [
+    'Albert Einstein allegedly called compound interest the eighth wonder of the world.',
+    'Rule of 72: divide 72 by an interest rate to estimate doubling time.',
+    'A single penny doubled every day for 30 days grows past $5 million.',
+    'Compounding more frequently than annually slightly increases returns.',
+    'Time in the market often matters more than timing the market.',
+    'Starting early allows more compounding periods and greater growth.',
+    "Continuous compounding uses Euler's number e to calculate growth.",
+    'At 7% annual return, investments roughly double every 10 years.',
+    'Compound interest works against you with debt as well as for you with savings.',
+    'Ben Franklin left money in trust that grew for 200 years via compounding.',
+    'Stock dividends that are reinvested harness compound growth.',
+    'Many retirement accounts compound tax-deferred.',
+    'A 1% difference in return can lead to huge differences over decades.',
+    'Interest compounded quarterly yields more than annually at the same APR.',
+    'The compound interest formula is A = P(1 + r/n)^{nt}.',
+    'Warren Buffett credits compound interest for much of his wealth.',
+    'Compounding can be visualized with exponential curves.',
+    'Bank savings accounts compound interest daily or monthly.',
+    'Real estate values can compound through appreciation and reinvested profits.',
+    'Credit card debt compounds interest on average daily.'
+  ],
+  retire: [
+    'The concept of retirement only became common in the 20th century.',
+    '401(k) plans were created in the U.S. tax code in 1978.',
+    'Many advisors suggest saving at least 15% of income for retirement.',
+    'Social Security originally paid benefits starting at age 65 in 1935.',
+    'Retirees today can expect to spend 20 years or more in retirement.',
+    'The FIRE movement aims for financial independence and early retirement.',
+    'Traditional pensions have become less common in the private sector.',
+    'Roth IRAs allow tax-free withdrawals in retirement.',
+    'Healthcare often becomes one of the largest expenses for retirees.',
+    'Required minimum distributions start at age 73 in the U.S.',
+    'Many retirees downsize homes to reduce expenses.',
+    'Social Security benefits increase the longer you delay claiming up to age 70.',
+    'Retirees may spend more on travel in early retirement years.',
+    'Some countries have mandatory retirement savings schemes.',
+    'The 4% rule suggests withdrawing 4% of your portfolio annually.',
+    'Women typically live longer and may need larger retirement savings.',
+    'Many people pursue part-time work or hobbies for income in retirement.',
+    'Compound interest is critical when saving for retirement early.',
+    'Inflation can erode retirement income purchasing power.',
+    'Longevity risk is the chance of outliving your savings.'
+  ],
+  debt: [
+    'The snowball method builds momentum by tackling the smallest debt first.',
+    'Avalanche pays off debt faster mathematically by targeting highest APRs.',
+    'The average credit card APR in the U.S. is now above 20%.',
+    'Paying just $50 extra each month can save thousands in interest.',
+    'Debt snowball was popularized by radio host Dave Ramsey.',
+    'Average U.S. household debt exceeds $100,000.',
+    'Student loan debt in the U.S. totals over $1.7 trillion.',
+    'Paying more than the minimum credit card payment reduces interest drastically.',
+    'Debt-to-income ratio is a key metric for lenders.',
+    'Consolidation loans can simplify multiple debts into one payment.',
+    'Some states have statutes of limitations on how long debts can be collected.',
+    'Bankruptcy can remain on credit reports for up to 10 years.',
+    'The average American carries four credit cards.',
+    'Interest on some debts like mortgages can be tax-deductible.',
+    'Debt settlement can harm credit but reduce balances.',
+    'Payday loans often carry APRs exceeding 400%.',
+    'Credit scores factor in credit utilization, payment history, and more.',
+    'Closing old credit accounts can temporarily lower credit scores.',
+    'High debt levels can hinder ability to qualify for mortgages or car loans.',
+    'The Fair Debt Collection Practices Act protects consumers from abusive tactics.'
+  ],
+  auto: [
+    'A new car typically loses around 20% of its value in the first year.',
+    'Lease money factors can be converted to APR by multiplying by 2400.',
+    'Leasing often limits mileage to 10–15k miles per year.',
+    'Average car loan terms have stretched to about 70 months.',
+    'Electric vehicles have fewer moving parts than gas cars.',
+    'The average new car price in the U.S. surpasses $48,000.',
+    'Cars start depreciating the moment they drive off the lot.',
+    'Hybrid vehicles can recapture energy through regenerative braking.',
+    'Some states offer rebates for purchasing electric vehicles.',
+    'GAP insurance covers the difference between a car\'s value and what you owe.',
+    'Car insurance rates often drop after age 25.',
+    'Maintenance costs increase significantly after 100,000 miles.',
+    'Leasing usually requires returning the car in good condition or paying fees.',
+    'Car subscriptions are emerging as an alternative to leasing or buying.',
+    'The first speeding ticket was issued in 1902 at 45 mph.',
+    'Horsepower originally referred to the power of a draft horse.',
+    'Tires usually lose about 1 PSI of pressure per month.',
+    'Automotive loans longer than 84 months are considered risky.',
+    'Some modern cars have over 100 million lines of software code.',
+    'A well-maintained vehicle can easily last over 200,000 miles.'
+  ],
+  rent: [
+    'A common rule of thumb is to spend no more than 30% of income on housing.',
+    'Property taxes can vary dramatically from one county to another.',
+    'Homeowners in the U.S. move every 7 to 10 years on average.',
+    'Mortgage preapproval letters can strengthen purchase offers.',
+    'In some markets renting can be cheaper than owning even long term.',
+    'Rent control laws exist in cities like New York and San Francisco.',
+    'Landlords typically screen tenants with credit and background checks.',
+    'Security deposits are often equal to one month\'s rent.',
+    'Renters insurance is inexpensive and covers personal belongings.',
+    'Some landlords offer rent discounts for long-term leases.',
+    'Rent-to-own agreements let tenants apply rent toward purchase.',
+    'The term "landlord" dates back to feudal times.',
+    'Many leases require 30-day notice before moving out.',
+    'Pet-friendly rentals may charge additional deposits or monthly fees.',
+    'Online listings have replaced newspaper classifieds for rentals.',
+    'Rent ratios compare the cost of renting vs buying in a market.',
+    'Co-living spaces offer shared housing with individual leases.',
+    'In some cities, vacant units pay higher taxes to deter speculation.',
+    'Moving during winter can sometimes yield lower rent prices.',
+    'Housing choice vouchers help low-income families pay rent.'
+  ],
+  networth: [
+    'Net worth equals assets minus liabilities.',
+    'Tracking net worth over time helps reveal financial progress.',
+    'Many billionaires once had negative net worth due to heavy debt.',
+    'The top 1% of U.S. households hold over $10 million in wealth.',
+    'Emergency funds are counted as assets in net worth calculations.',
+    'A positive net worth means assets exceed liabilities.',
+    'Net worth can fluctuate with market changes daily.',
+    'Tracking net worth monthly helps monitor financial health.',
+    'High-net-worth individuals are often defined as having $1 million in liquid assets.',
+    'Liabilities like mortgages decrease as you make payments, boosting net worth.',
+    'Investing in appreciating assets can grow net worth over time.',
+    'Depreciating assets like cars reduce net worth as they lose value.',
+    'Some people track net worth using spreadsheets or apps.',
+    "Net worth is a snapshot and doesn't reflect cash flow.",
+    'Inflation can erode the real value of net worth.',
+    'Dividing net worth by age provides a rough benchmark for savings.',
+    'Net worth milestones, like the first $100k, are celebrated in finance communities.',
+    'Entrepreneurs often reinvest profits, delaying net worth growth.',
+    'Debt payoff strategies directly increase net worth.',
+    'A negative net worth is common early in adulthood due to student loans.'
+  ],
+  tax: [
+    'The U.S. introduced the federal income tax in 1913.',
+    'The highest U.S. marginal tax rate peaked at 94% during WWII.',
+    'Several states including Texas and Florida have no state income tax.',
+    'The IRS processes more than 150 million tax returns each year.',
+    'Electronic filing usually yields faster refunds than paper returns.',
+    'Tax brackets in the U.S. are progressive; higher income is taxed at higher rates.',
+    'The IRS was created by President Lincoln in 1862.',
+    'The first e-file tax return was transmitted in 1986.',
+    'Some countries have flat tax systems instead of progressive ones.',
+    'Tax refunds are essentially an interest-free loan to the government.',
+    'Capital gains may be taxed differently than regular income.',
+    'The average American spends 13 hours preparing their tax return.',
+    'The Alternative Minimum Tax was designed to ensure wealthy pay minimum taxes.',
+    'Sales taxes vary by state and locality.',
+    'Some states have no sales tax, like Oregon.',
+    'Child tax credits can significantly reduce tax liability.',
+    'Payroll taxes fund Social Security and Medicare.',
+    'Property taxes often fund local schools and services.',
+    'Tax audits are rare, with less than 1% of returns examined.',
+    'The U.S. tax code spans thousands of pages.'
+  ],
+  data: [
+    'Open data portals let you download housing and wage statistics for free.',
+    'ZIP Codes were created in 1963 to speed up mail delivery.',
+    'Many governments provide APIs for real-time economic data.',
+    'Real estate sale records can lag by months before publication.',
+    'Analyzing public data can uncover surprising financial trends.',
+    'APIs often return data in JSON format for easy parsing.',
+    'OpenStreetMap is a crowdsourced geographic database.',
+    'Governments release data under open licenses for public use.',
+    'Big data tools like Hadoop and Spark process massive datasets.',
+    'Data visualizations help communicate complex information quickly.',
+    'Many datasets include metadata describing their contents and provenance.',
+    'CSV is a common flat-file format for tabular data.',
+    'Some APIs rate-limit requests to prevent abuse.',
+    'Data cleaning often consumes most of a data scientist\'s time.',
+    'Open government initiatives aim to increase transparency.',
+    'Weather data is frequently used in economic forecasting.',
+    'Machine learning models rely on high-quality training data.',
+    'Data breaches can expose sensitive personal information.',
+    'Real-time APIs power live dashboards and apps.',
+    'Public datasets can be combined to uncover new insights.'
+  ]
+};
+
 function Home({ onOpen }) {
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Pick a Calculator", right: /*#__PURE__*/React.createElement("span", { className: "text-xs text-slate-500" }, "Everything updates instantly") }, /*#__PURE__*/
@@ -1139,6 +1350,36 @@ function Home({ onOpen }) {
 
 
 
+}
+
+function FunFacts({ topic }) {
+  const facts = useMemo(() => {
+    if (topic === 'home') return Object.values(FUN_FACTS).flat();
+    return FUN_FACTS[topic] || [];
+  }, [topic]);
+
+  const randomFact = () => facts[Math.floor(Math.random() * facts.length)];
+  const [fact, setFact] = useState(() => facts.length ? randomFact() : '');
+
+  useEffect(() => {
+    if (facts.length) setFact(randomFact());
+  }, [facts]);
+
+  useEffect(() => {
+    if (!facts.length) return;
+    const timer = setTimeout(() => setFact(randomFact()), 10000);
+    return () => clearTimeout(timer);
+  }, [fact, facts]);
+
+  const shuffle = () => {
+    if (facts.length) setFact(randomFact());
+  };
+
+  if (!facts.length) return null;
+  return /*#__PURE__*/(
+    React.createElement("div", { className: "mt-4 px-4 py-3 bg-white border rounded-xl flex items-center justify-between gap-3 shadow-card" }, /*#__PURE__*/
+    React.createElement("span", { className: "text-sm text-slate-700" }, fact), /*#__PURE__*/
+    React.createElement("button", { className: "kbd", onClick: shuffle, title: "Shuffle fun fact" }, "\uD83D\uDD00")));
 }
 
 /* --------------------------------- App --------------------------------- */
@@ -1173,6 +1414,7 @@ function App() {
       onClick: () => setView(t.id),
       className: (view === t.id ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'tab-btn border rounded-2xl px-3 py-2 transition-colors text-[13px] sm:text-sm' },
     t.label))))), /*#__PURE__*/
+    React.createElement(FunFacts, { topic: view }), /*#__PURE__*/
 
 
 
