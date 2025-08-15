@@ -25,9 +25,8 @@ class ErrorBoundary extends React.Component {
 /* ----------------------- Socials ----------------------- */
 const SOCIALS = {
   instagram: 'https://instagram.com/luisitin2001',
-  tiktok: 'https://www.tiktok.com/@luisitin2001',
-  twitter: 'https://twitter.com/luisitin2001',
-  youtube: 'https://www.youtube.com/@luisitin2001' };
+  tiktok: 'https://www.tiktok.com/@luisitin2001'
+};
 
 const IconLink = ({ href, label, children }) => /*#__PURE__*/
 React.createElement("a", { href: href, target: "_blank", rel: "noreferrer",
@@ -35,16 +34,12 @@ React.createElement("a", { href: href, target: "_blank", rel: "noreferrer",
 children);
 
 
-const InstagramSVG = () => /*#__PURE__*/React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /*#__PURE__*/React.createElement("rect", { x: "3", y: "3", width: "18", height: "18", rx: "5", stroke: "currentColor" }), /*#__PURE__*/React.createElement("circle", { cx: "12", cy: "12", r: "4", stroke: "currentColor" }), /*#__PURE__*/React.createElement("circle", { cx: "17.5", cy: "6.5", r: "1", fill: "currentColor" }));
-const TikTokSVG = () => /*#__PURE__*/React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /*#__PURE__*/React.createElement("path", { d: "M14 3c1.2 2.7 3 4.3 6 4.6V11c-2.6-.2-4.5-1.1-6-2.6V15a6 6 0 11-6-6 6.5 6.5 0 010 .9A3 3 0 106 15a3 3 0 003 3 3 3 0 003-3V3h2z", fill: "currentColor" }));
-const XSVG = () => /*#__PURE__*/React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /*#__PURE__*/React.createElement("path", { d: "M3 3l8.4 10.1L3.7 21h2.3l6.7-6.8 5.4 6.8H21l-8.9-11L20.3 3H18l-6.1 6L7 3H3z", fill: "currentColor" }));
-const YouTubeSVG = () => /*#__PURE__*/React.createElement("svg", { width: "16", height: "16", viewBox: "0 0 24 24", fill: "none", "aria-hidden": "true" }, /*#__PURE__*/React.createElement("path", { d: "M23 12s0-3.4-.4-5a3 3 0 00-2.1-2.1C19 4.4 12 4.4 12 4.4s-7 0-8.5.5A3 3 0 001.4 7C1 8.6 1 12 1 12s0 3.4.4 5a3 3 0 002.1 2.1c1.5.5 8.5.5 8.5.5s7 0 8.5-.5A3 3 0 0022.6 17c.4-1.6.4-5 .4-5z", stroke: "currentColor" }), /*#__PURE__*/React.createElement("path", { d: "M10 8.5v7l6-3.5-6-3.5z", fill: "currentColor" }));
+const InstagramSVG = () => /*#__PURE__*/React.createElement("img", { src: "instagram.svg", width: "16", height: "16", alt: "", "aria-hidden": "true" });
+const TikTokSVG = () => /*#__PURE__*/React.createElement("img", { src: "tiktok.svg", width: "16", height: "16", alt: "", "aria-hidden": "true" });
 const SocialBar = () => /*#__PURE__*/
 React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
 React.createElement(IconLink, { href: SOCIALS.instagram, label: "Instagram" }, /*#__PURE__*/React.createElement(InstagramSVG, null)), /*#__PURE__*/
-React.createElement(IconLink, { href: SOCIALS.tiktok, label: "TikTok" }, /*#__PURE__*/React.createElement(TikTokSVG, null)), /*#__PURE__*/
-React.createElement(IconLink, { href: SOCIALS.twitter, label: "X / Twitter" }, /*#__PURE__*/React.createElement(XSVG, null)), /*#__PURE__*/
-React.createElement(IconLink, { href: SOCIALS.youtube, label: "YouTube" }, /*#__PURE__*/React.createElement(YouTubeSVG, null)));
+React.createElement(IconLink, { href: SOCIALS.tiktok, label: "TikTok" }, /*#__PURE__*/React.createElement(TikTokSVG, null)));
 
 
 
