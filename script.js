@@ -51,7 +51,7 @@ function SettingsPanel({ config, onChange }) {
       "div",
       {
         className: "absolute top-full right-0 mt-2 w-56 p-4 rounded-xl shadow-card space-y-3",
-        style: { background: "var(--card-bg)", border: "1px solid var(--border)", zIndex: 50 }
+        style: { background: "var(--card-bg)", border: "1px solid var(--border)", zIndex: 100 }
       }, /*#__PURE__*/
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Theme"), /*#__PURE__*/
@@ -1427,6 +1427,12 @@ function App() {
     if (settings.font === 'base') delete root.dataset.font; else root.dataset.font = settings.font;
     const meta = document.querySelector('meta[name=color-scheme]');
     if (meta) meta.setAttribute('content', settings.theme === 'dark' ? 'dark' : 'light');
+    const body = document.body;
+    if (settings.theme === 'dark') {
+      body.classList.remove('bg-slate-50', 'text-slate-900');
+    } else {
+      body.classList.add('bg-slate-50', 'text-slate-900');
+    }
   }, [settings]);
 
   const updateSetting = (k, v) => setSettings(s => ({ ...s, [k]: v }));
