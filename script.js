@@ -485,7 +485,6 @@ function RetirementGoal() {
 function DebtPayoff() {
   const [debts, setDebts] = useState([{ name: 'Debt 1', balance: undefined, apr: undefined, min: undefined }]);
   const [extra, setExtra] = useState();
-  const [method, setMethod] = useState('Avalanche');
 
   const add = () => setDebts(d => [...d, { name: `Debt ${d.length + 1}`, balance: undefined, apr: undefined, min: undefined }]);
   const update = (i, k, v) => setDebts(d => d.map((x, idx) => idx === i ? { ...x, [k]: v } : x));
@@ -496,7 +495,7 @@ function DebtPayoff() {
     return Math.max(0.02 * b, 25); // 2% or $25
   };
 
-  const sim = useMemo(() => {
+  const simulate = method => {
     let rows = debts.map(d => ({
       ...d,
       balance: +(d.balance || 0),
@@ -517,7 +516,10 @@ function DebtPayoff() {
       timeline.push({ month, remaining: rows.reduce((s, d) => s + d.balance, 0) });
     }
     return { months: month, totalInterest, timeline };
-  }, [debts, extra, method]);
+  };
+
+  const simAvalanche = useMemo(() => simulate('Avalanche'), [debts, extra]);
+  const simSnowball = useMemo(() => simulate('Snowball'), [debts, extra]);
 
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -526,34 +528,20 @@ function DebtPayoff() {
     if (!window.Chart || !canvasRef.current) return;
     try {
       const ctx = canvasRef.current.getContext('2d');
-      const labels = sim.timeline.map(t => t.month);
-      const data = sim.timeline.map(t => Math.round(t.remaining));
+      const labels = simAvalanche.timeline.map(t => t.month);
+      const data = simAvalanche.timeline.map(t => Math.round(t.remaining));
       chartRef.current = new Chart(ctx, { type: 'line',
         data: { labels, datasets: [{ data, borderColor: '#ef4444', fill: false, tension: .15, pointRadius: 0 }] },
         options: { plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => money0(v) } } } } });
 
     } catch (err) {console.warn('Debt chart skipped:', err);}
-  }, [sim.timeline]);
-
-  const methodDesc = method === 'Avalanche' ?
-  'Focus highest APR first — mathematically most efficient.' :
-  'Focus smallest balance first — faster psychological wins.';
+  }, [simAvalanche.timeline]);
 
   return /*#__PURE__*/(
-    React.createElement(Section, { title: `Debt Payoff — ${method}` }, /*#__PURE__*/
-    React.createElement("p", { className: "text-xs text-slate-600 mb-2" }, methodDesc), /*#__PURE__*/
-
+    React.createElement(Section, { title: "Debt Payoff" }, /*#__PURE__*/
 
     React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
     React.createElement("span", { className: "ml-auto" }, /*#__PURE__*/
-    React.createElement("label", { className: "mr-2 text-slate-600" }, "Method"), /*#__PURE__*/
-    React.createElement("select", { className: "field w-auto inline-block", value: method, onChange: e => setMethod(e.target.value) }, /*#__PURE__*/
-    React.createElement("option", null, "Avalanche"), /*#__PURE__*/
-    React.createElement("option", null, "Snowball"))), /*#__PURE__*/
-
-
-    React.createElement("div", { className: "w-px h-6 bg-slate-200 hidden sm:block" }), /*#__PURE__*/
-    React.createElement("span", null, /*#__PURE__*/
     React.createElement("label", { className: "mr-2 text-slate-600" }, "Extra monthly"), /*#__PURE__*/
     React.createElement(CurrencyInput, { value: extra, onChange: setExtra, placeholder: money0(0) }))), /*#__PURE__*/
 
@@ -587,12 +575,11 @@ function DebtPayoff() {
     React.createElement("div", { className: "mt-4 result" }, /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "180" })), /*#__PURE__*/
 
-
     React.createElement("div", { className: "grid sm:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Months to debt-free"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, sim.months.toLocaleString())), /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Total interest (est.)"), /*#__PURE__*/React.createElement("div", null, money0(sim.totalInterest)))),
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Avalanche"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simAvalanche.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simAvalanche.totalInterest), " interest"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-1" }, "Focus highest APR first — mathematically most efficient.")), /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Snowball"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, simSnowball.months.toLocaleString(), " mo"), /*#__PURE__*/React.createElement("div", null, money0(simSnowball.totalInterest), " interest"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-1" }, "Focus smallest balance first — faster psychological wins."))),
 
-    !sim.timeline.length && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Add at least one debt with a balance to simulate.")));
+    !simAvalanche.timeline.length && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Add at least one debt with a balance to simulate.")));
 
 
 }
