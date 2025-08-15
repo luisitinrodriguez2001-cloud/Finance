@@ -47,7 +47,12 @@ React.createElement(IconLink, { href: SOCIALS.tiktok, label: "TikTok" }, /*#__PU
 /* ----------------------- Settings ----------------------- */
 function SettingsPanel({ config, onChange }) {
   return /*#__PURE__*/(
-    React.createElement("div", { className: "absolute top-full right-0 mt-2 w-56 p-4 border rounded-xl bg-white shadow-card space-y-3" }, /*#__PURE__*/
+    React.createElement(
+      "div",
+      {
+        className: "absolute top-full right-0 mt-2 w-56 p-4 rounded-xl shadow-card space-y-3",
+        style: { background: "var(--card-bg)", border: "1px solid var(--border)", zIndex: 50 }
+      }, /*#__PURE__*/
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Theme"), /*#__PURE__*/
     React.createElement("select", { className: "field", value: config.theme, onChange: e => onChange('theme', e.target.value) }, /*#__PURE__*/
@@ -59,7 +64,8 @@ function SettingsPanel({ config, onChange }) {
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Font size"), /*#__PURE__*/
     React.createElement("select", { className: "field", value: config.font, onChange: e => onChange('font', e.target.value) }, /*#__PURE__*/
-    React.createElement("option", { value: "base" }, "Base"), /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"), /*#__PURE__*/React.createElement("option", { value: "large" }, "Large")))));
+    React.createElement("option", { value: "base" }, "Base"), /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"), /*#__PURE__*/React.createElement("option", { value: "large" }, "Large")))))
+  );
 }
 
 /* ----------------------- Formatters & math ----------------------- */
@@ -1415,11 +1421,12 @@ function App() {
   const [settings, setSettings] = useLocalStorage('settings', { theme: 'light', accent: 'slate', font: 'base' });
 
   useEffect(() => {
-    document.documentElement.dataset.theme = settings.theme;
-    document.documentElement.dataset.accent = settings.accent;
-    document.documentElement.dataset.font = settings.font;
+    const root = document.documentElement;
+    if (settings.theme === 'light') delete root.dataset.theme; else root.dataset.theme = settings.theme;
+    if (settings.accent === 'slate') delete root.dataset.accent; else root.dataset.accent = settings.accent;
+    if (settings.font === 'base') delete root.dataset.font; else root.dataset.font = settings.font;
     const meta = document.querySelector('meta[name=color-scheme]');
-    if (meta) meta.setAttribute('content', settings.theme === 'dark' ? 'dark light' : 'light dark');
+    if (meta) meta.setAttribute('content', settings.theme === 'dark' ? 'dark' : 'light');
   }, [settings]);
 
   const updateSetting = (k, v) => setSettings(s => ({ ...s, [k]: v }));
