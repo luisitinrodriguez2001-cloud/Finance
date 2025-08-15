@@ -43,6 +43,25 @@ React.createElement(IconLink, { href: SOCIALS.tiktok, label: "TikTok" }, /*#__PU
 
 
 
+
+/* ----------------------- Settings ----------------------- */
+function SettingsPanel({ config, onChange }) {
+  return /*#__PURE__*/(
+    React.createElement("div", { className: "absolute top-full right-0 mt-2 w-56 p-4 space-y-3 tooltip-panel z-50" }, /*#__PURE__*/
+    React.createElement("div", null, /*#__PURE__*/
+    React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Theme"), /*#__PURE__*/
+    React.createElement("select", { className: "field", value: config.theme, onChange: e => onChange('theme', e.target.value) }, /*#__PURE__*/
+    React.createElement("option", { value: "light" }, "Light"), /*#__PURE__*/React.createElement("option", { value: "dark" }, "Dark"))), /*#__PURE__*/
+    React.createElement("div", null, /*#__PURE__*/
+    React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Accent"), /*#__PURE__*/
+    React.createElement("select", { className: "field", value: config.accent, onChange: e => onChange('accent', e.target.value) }, /*#__PURE__*/
+    React.createElement("option", { value: "slate" }, "Slate"), /*#__PURE__*/React.createElement("option", { value: "emerald" }, "Emerald"), /*#__PURE__*/React.createElement("option", { value: "amber" }, "Amber"))), /*#__PURE__*/
+    React.createElement("div", null, /*#__PURE__*/
+    React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Font size"), /*#__PURE__*/
+    React.createElement("select", { className: "field", value: config.font, onChange: e => onChange('font', e.target.value) }, /*#__PURE__*/
+    React.createElement("option", { value: "base" }, "Base"), /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"), /*#__PURE__*/React.createElement("option", { value: "large" }, "Large")))));
+}
+
 /* ----------------------- Formatters & math ----------------------- */
 const money0 = n => {var _window$accounting$fo, _window$accounting, _window$accounting$fo2;return (_window$accounting$fo = (_window$accounting = window.accounting) === null || _window$accounting === void 0 ? void 0 : (_window$accounting$fo2 = _window$accounting.formatMoney) === null || _window$accounting$fo2 === void 0 ? void 0 : _window$accounting$fo2.call(_window$accounting, n !== null && n !== void 0 ? n : 0, { precision: 0 })) !== null && _window$accounting$fo !== void 0 ? _window$accounting$fo :
   (n !== null && n !== void 0 ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });};
@@ -1379,13 +1398,31 @@ function FunFacts({ topic }) {
   return /*#__PURE__*/(
     React.createElement("div", { className: "mt-4 px-4 py-3 bg-white border rounded-xl flex items-center justify-between gap-3 shadow-card" }, /*#__PURE__*/
     React.createElement("span", { className: "text-sm text-slate-700" }, fact), /*#__PURE__*/
-    React.createElement("button", { className: "kbd", onClick: shuffle, title: "Shuffle fun fact" }, "\uD83D\uDD00")));
+    React.createElement("button", {
+      className: "icon-btn hover:bg-slate-100 transition-colors duration-150",
+      onClick: shuffle,
+      title: "Shuffle fun fact",
+      "aria-label": "Shuffle fun fact",
+      style: { background: "transparent" }
+    }, "\uD83D\uDD00\uFE0F")));
 }
 
 /* --------------------------------- App --------------------------------- */
 function App() {
   const [view, setView] = useState('home');
   const [placeholders, setPlaceholders] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settings, setSettings] = useLocalStorage('settings', { theme: 'light', accent: 'slate', font: 'base' });
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings.theme;
+    document.documentElement.dataset.accent = settings.accent;
+    document.documentElement.dataset.font = settings.font;
+    const meta = document.querySelector('meta[name=color-scheme]');
+    if (meta) meta.setAttribute('content', settings.theme === 'dark' ? 'dark light' : 'light dark');
+  }, [settings]);
+
+  const updateSetting = (k, v) => setSettings(s => ({ ...s, [k]: v }));
 
   return /*#__PURE__*/(
     React.createElement("div", { className: "max-w-5xl mx-auto px-4 py-6" }, /*#__PURE__*/
@@ -1399,8 +1436,11 @@ function App() {
 
 
 
-    React.createElement("div", { className: "flex flex-col items-end gap-2" }, /*#__PURE__*/
+    React.createElement("div", { className: "flex flex-col items-end gap-2 relative" }, /*#__PURE__*/
+    React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
     React.createElement(SocialBar, null), /*#__PURE__*/
+    React.createElement("button", { className: "icon-btn hover:bg-slate-100 transition-colors duration-150", onClick: () => setSettingsOpen(o => !o), "aria-label": "Settings", title: "Settings" }, "\u2699\uFE0F")), /*#__PURE__*/
+    settingsOpen && /*#__PURE__*/React.createElement(SettingsPanel, { config: settings, onChange: updateSetting }), /*#__PURE__*/
     React.createElement("span", { className: "text-[11px] text-slate-500" }, "@luisitin2001"))), /*#__PURE__*/
 
 
