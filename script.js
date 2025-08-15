@@ -1,7 +1,7 @@
 /* Finance Calculators — React 18 + Babel + Math.js + Day.js + Chart.js
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
-   - FRED fetch: robust + CORS-aware (direct → AllOrigins fallback), takes last 24 obs and picks latest numeric.
+   - Live data now uses public ZIP & Census sources only (FRED removed).
 */
 const { useState, useMemo, useEffect, useRef } = React;
 
@@ -116,31 +116,13 @@ async function fetchJsonCORS(url) {
   }
 }
 
-/* ----------------------- Live data helpers (FRED/ZIP/Census) ----------------------- */
+/* ----------------------- Live data helpers (ZIP/Census) ----------------------- */
 function useLocalStorage(key, initial) {
   const [val, setVal] = useState(() => {
     try {const v = localStorage.getItem(key);return v ? JSON.parse(v) : initial;} catch {return initial;}
   });
   useEffect(() => {try {localStorage.setItem(key, JSON.stringify(val));} catch {}}, [key, val]);
   return [val, setVal];
-}
-async function fetchFREDLatest(seriesId, apiKey) {
-  // FRED: /fred/series/observations with JSON + sort desc + limit 24  — latest numeric entry
-  // Docs: https://fred.stlouisfed.org/docs/api/fred/series_observations.html
-  const url = new URL('https://api.stlouisfed.org/fred/series/observations');
-  url.searchParams.set('series_id', seriesId);
-  url.searchParams.set('file_type', 'json');
-  url.searchParams.set('sort_order', 'desc');
-  url.searchParams.set('limit', '24');
-  if (apiKey) url.searchParams.set('api_key', apiKey);
-
-  const j = await fetchJsonCORS(url.href);
-  if (j.error_code) throw new Error(`FRED: ${j.error_message || 'invalid request'}`);
-
-  const obsArr = Array.isArray(j === null || j === void 0 ? void 0 : j.observations) ? j.observations : [];
-  const latest = obsArr.find(o => Number.isFinite(parseFloat(o.value)));
-  if (!latest) return null;
-  return { date: latest.date, value: parseFloat(latest.value) };
 }
 async function fetchZip(zip) {var _j$places;
   const r = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(zip)}`);
@@ -289,6 +271,32 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
     return { remain, newBalance, newLoan, currPayment, paymentDelta, breakEvenMonths, chart: { labels, baseData, altData } };
   }, [mode, principalX, aprX, yearsX, res.payment, res.N, elapsedY, newAPR, newYears, closingCosts]);
 
+  const savings = useMemo(() => {
+    if (mode === 'extra' && extraSched) {
+      return {
+        months: baseSched.months - extraSched.months,
+        interest: baseSched.totalInterest - extraSched.totalInterest
+      };
+    }
+    if (mode === 'lump' && lumpSched) {
+      return {
+        months: baseSched.months - lumpSched.months,
+        interest: baseSched.totalInterest - lumpSched.totalInterest
+      };
+    }
+    if (mode === 'refi' && refi) {
+      const k = months(elapsedY || 0);
+      const paid = baseSched.rows.slice(0, k).reduce((s, r) => s + r.interest, 0);
+      const totalInterestRefi = paid + refi.newLoan.totalInterest;
+      const totalMonthsRefi = k + refi.newLoan.N;
+      return {
+        months: baseSched.months - totalMonthsRefi,
+        interest: baseSched.totalInterest - totalInterestRefi
+      };
+    }
+    return null;
+  }, [mode, extraSched, lumpSched, refi, baseSched, elapsedY]);
+
   // chart
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -386,33 +394,32 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
     React.createElement("div", { className: "mt-6" }, /*#__PURE__*/
     React.createElement("h3", { className: "font-medium mb-2" }, "Analysis"), /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-4 gap-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Type" }, /*#__PURE__*/
-    React.createElement("select", { className: "field", value: mode, onChange: e => setMode(e.target.value) }, /*#__PURE__*/
-    React.createElement("option", { value: "extra" }, "Extra monthly principal"), /*#__PURE__*/
-    React.createElement("option", { value: "refi" }, "Refinance"), /*#__PURE__*/
-    React.createElement("option", { value: "lump" }, "Lump-sum principal"))),
+      React.createElement(Field, { label: "Type" }, /*#__PURE__*/
+      React.createElement("select", { className: "field", value: mode, onChange: e => setMode(e.target.value) }, /*#__PURE__*/
+      React.createElement("option", { value: "extra" }, "Extra monthly principal"), /*#__PURE__*/
+      React.createElement("option", { value: "refi" }, "Refinance"), /*#__PURE__*/
+      React.createElement("option", { value: "lump" }, "Lump-sum principal"))),
 
+      mode === 'extra' && /*#__PURE__*/
+      React.createElement(Field, { label: "Extra monthly" }, /*#__PURE__*/
+      React.createElement(CurrencyInput, { value: extra, onChange: setExtra, placeholder: money0(0) })),
 
+      mode === 'refi' && /*#__PURE__*/
+      React.createElement(React.Fragment, null, /*#__PURE__*/
+      React.createElement(Field, { label: "Years elapsed on current" }, /*#__PURE__*/React.createElement(NumberInput, { value: elapsedY, onChange: setElapsedY, step: "0.5", placeholder: "3" })), /*#__PURE__*/
+      React.createElement(Field, { label: "New APR" }, /*#__PURE__*/React.createElement(PercentInput, { value: newAPR, onChange: setNewAPR, placeholder: Math.max(0, aprX - 0.5).toFixed(2) })), /*#__PURE__*/
+      React.createElement(Field, { label: "New term (years)" }, /*#__PURE__*/React.createElement(NumberInput, { value: newYears, onChange: setNewYears, step: "1", placeholder: String(yearsX) })), /*#__PURE__*/
+      React.createElement(Field, { label: "Closing costs" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: closingCosts, onChange: setClosingCosts, placeholder: money0(3000) }))),
 
-    mode === 'extra' && /*#__PURE__*/
-    React.createElement(Field, { label: "Extra monthly" }, /*#__PURE__*/
-    React.createElement(CurrencyInput, { value: extra, onChange: setExtra, placeholder: money0(0) })),
+      mode === 'lump' && /*#__PURE__*/
+      React.createElement(React.Fragment, null, /*#__PURE__*/
+      React.createElement(Field, { label: "Lump amount" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: lumpAmt, onChange: setLumpAmt, placeholder: money0(5000) })), /*#__PURE__*/
+      React.createElement(Field, { label: "Apply at month" }, /*#__PURE__*/React.createElement(NumberInput, { value: lumpMonth, onChange: setLumpMonth, step: "1", placeholder: "24" }))),
 
-
-
-    mode === 'refi' && /*#__PURE__*/
-    React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement(Field, { label: "Years elapsed on current" }, /*#__PURE__*/React.createElement(NumberInput, { value: elapsedY, onChange: setElapsedY, step: "0.5", placeholder: "3" })), /*#__PURE__*/
-    React.createElement(Field, { label: "New APR" }, /*#__PURE__*/React.createElement(PercentInput, { value: newAPR, onChange: setNewAPR, placeholder: Math.max(0, aprX - 0.5).toFixed(2) })), /*#__PURE__*/
-    React.createElement(Field, { label: "New term (years)" }, /*#__PURE__*/React.createElement(NumberInput, { value: newYears, onChange: setNewYears, step: "1", placeholder: String(yearsX) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Closing costs" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: closingCosts, onChange: setClosingCosts, placeholder: money0(3000) }))),
-
-
-
-    mode === 'lump' && /*#__PURE__*/
-    React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement(Field, { label: "Lump amount" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: lumpAmt, onChange: setLumpAmt, placeholder: money0(5000) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Apply at month" }, /*#__PURE__*/React.createElement(NumberInput, { value: lumpMonth, onChange: setLumpMonth, step: "1", placeholder: "24" })))))));
+      savings && /*#__PURE__*/React.createElement("div", { className: "result mt-3 col-span-full" }, /*#__PURE__*/
+      React.createElement("div", { className: "text-xs text-slate-500" }, "Savings vs baseline"), /*#__PURE__*/
+      React.createElement("div", null, money0(savings.interest) + ' interest \u2022 ' + Math.round(savings.months) + ' months'))
+      ))));
 
 
 
@@ -968,7 +975,7 @@ function TaxCalc() {
 
 }
 
-/* ----------------------- Rent vs Buy ----------------------- */
+/* ----------------------- Home Affordability (Rent vs Buy) ----------------------- */
 function RentVsBuy({ placeholders }) {var _placeholders$mortgag2;
   const [rent, setRent] = useState();
   const [apr, setApr] = useState();
@@ -1018,7 +1025,7 @@ function RentVsBuy({ placeholders }) {var _placeholders$mortgag2;
   const userEnteredRent = Number.isFinite(rent);
 
   return /*#__PURE__*/(
-    React.createElement(Section, { title: "Rent vs Buy \u2014 Affordable Home From Your Rent" }, /*#__PURE__*/
+    React.createElement(Section, { title: "Home Affordability (Rent vs Buy)" }, /*#__PURE__*/
     React.createElement("div", { className: "grid md:grid-cols-2 gap-4" }, /*#__PURE__*/
     React.createElement("div", { className: "card p-4" }, /*#__PURE__*/
     React.createElement("h3", { className: "font-semibold mb-3" }, "Inputs"), /*#__PURE__*/
@@ -1062,155 +1069,58 @@ function RentVsBuy({ placeholders }) {var _placeholders$mortgag2;
 
 }
 
-/* ----------------------- Data panel (Refresh validates → fetch; CORS aware) ----------------------- */
-const FRED_SERIES = {
-  'MORTGAGE30US': '30-yr mortgage rate (PMMS)',
-  'MORTGAGE15US': '15-yr mortgage rate (PMMS)',
-  'MORTGAGE5US': '5/1 ARM mortgage rate (PMMS)',
-  'DGS10': '10-yr Treasury (constant maturity)',
-  'CPIAUCSL': 'CPI-U (all items, SA)',
-  'UNRATE': 'Unemployment rate' };
-
-function DataPanel({ onPlaceholders }) {var _rates$m, _rates$m2, _rates$m3, _rates$m4, _rates$arm, _rates$arm2;
-  const [fredKey, setFredKey] = useLocalStorage('fredKey', '');
+/* ----------------------- Data panel (Refresh → fetch public data) ----------------------- */
+function DataPanel({ onPlaceholders }) {
   const [zip, setZip] = useLocalStorage('zip', '90210');
-  const [series, setSeries] = useLocalStorage('fredSeries', 'MORTGAGE30US');
-
-  const [rates, setRates] = useState({ m30: null, m15: null, arm5: null });
-  const [selected, setSelected] = useState(null);
   const [area, setArea] = useState(null);
   const [home, setHome] = useState(null);
   const [status, setStatus] = useState('');
+  const mortgageAPRPH = 6.5;
 
   const refresh = async () => {
     setStatus('Fetching…');
     try {
       const [loc, hv] = await Promise.all([
-      fetchZip(zip).catch(_ => null),
-      fetchMedianHomeValueByZip(zip).catch(_ => null)]);
-
-      setArea(loc);setHome(hv);
-
-      let m30 = null,m15 = null,arm5 = null,sel = null;
-
-      if (fredKey) {var _m, _m2, _arm;
-        // validate first using 30-year series
-        setStatus('Validating API key…');
-        try {
-          m30 = await fetchFREDLatest('MORTGAGE30US', fredKey);
-          if (!m30 || !Number.isFinite(m30.value)) throw new Error('No numeric data returned');
-        } catch (e) {
-          setRates({ m30: null, m15: null, arm5: null });
-          setSelected(null);
-          setStatus('API key appears invalid or blocked by CORS ❌');
-          // still push placeholders from local data
-          const mortgageAPRPH = 6.5;
-          const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
-          onPlaceholders === null || onPlaceholders === void 0 ? void 0 : onPlaceholders({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, rates: {} });
-          return;
-        }
-
-        // fetch remaining series
-        const freds = await Promise.allSettled([
-        fetchFREDLatest('MORTGAGE15US', fredKey),
-        fetchFREDLatest('MORTGAGE5US', fredKey),
-        series ? fetchFREDLatest(series, fredKey) : Promise.resolve(null)]);
-
-        m15 = freds[0].status === 'fulfilled' ? freds[0].value : null;
-        arm5 = freds[1].status === 'fulfilled' ? freds[1].value : null;
-        sel = freds[2].status === 'fulfilled' ? freds[2].value : null;
-        setRates({ m30, m15, arm5 });
-        setSelected(sel);
-
-        const mortgageAPRPH = m30 && Number.isFinite(m30.value) ? m30.value : 6.5;
-        const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
-        onPlaceholders === null || onPlaceholders === void 0 ? void 0 : onPlaceholders({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, rates: { m30: (_m = m30) === null || _m === void 0 ? void 0 : _m.value, m15: (_m2 = m15) === null || _m2 === void 0 ? void 0 : _m2.value, arm5: (_arm = arm5) === null || _arm === void 0 ? void 0 : _arm.value } });
-        setStatus('Updated ✅');
-      } else {
-        setRates({ m30: null, m15: null, arm5: null });
-        setSelected(null);
-        const mortgageAPRPH = 6.5;
-        const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
-        onPlaceholders === null || onPlaceholders === void 0 ? void 0 : onPlaceholders({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, rates: {} });
-        setStatus('Updated (no API key)');
-      }
+        fetchZip(zip).catch(_ => null),
+        fetchMedianHomeValueByZip(zip).catch(_ => null)
+      ]);
+      setArea(loc); setHome(hv);
+      const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
+      onPlaceholders === null || onPlaceholders === void 0 ? void 0 : onPlaceholders({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, rates: {} });
+      setStatus('Updated ✅');
     } catch (e) {
       console.warn('Data load failed', e);
       setStatus('Fetch failed. Check inputs or try again.');
     }
   };
 
-  useEffect(() => {refresh();}, []); // initial
+  useEffect(() => { refresh(); }, []);
 
   return /*#__PURE__*/(
-    React.createElement(Section, { title: "Data (live placeholders)" }, /*#__PURE__*/
-    React.createElement("div", { className: "grid md:grid-cols-3 gap-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/
-    React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" })), /*#__PURE__*/
+    React.createElement(Section, { title: "Data (placeholders)" }, /*#__PURE__*/
+      React.createElement("div", { className: "grid md:grid-cols-3 gap-3" }, /*#__PURE__*/
+        React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/
+          React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" })), /*#__PURE__*/
+        React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
+          React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh")), /*#__PURE__*/
+        React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
+          React.createElement("div", { className: "text-sm" }, status))), /*#__PURE__*/
 
-    React.createElement(Field, { label: "FRED API key (optional)" }, /*#__PURE__*/
-    React.createElement("input", { className: "field", value: fredKey, onChange: e => setFredKey(e.target.value), placeholder: "paste your key" })), /*#__PURE__*/
+      React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+        React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Area"), /*#__PURE__*/
+          React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '—')), /*#__PURE__*/
+        React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
+          React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '—')), /*#__PURE__*/
+        React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, "30-yr mortgage rate placeholder"), /*#__PURE__*/
+          React.createElement("div", null, `${mortgageAPRPH.toFixed(2)}%`))), /*#__PURE__*/
 
-    React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
-    React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"), /*#__PURE__*/
-    React.createElement("a", { className: "text-xs underline text-slate-600", href: "https://fred.stlouisfed.org/docs/api/api_key.html", target: "_blank", rel: "noreferrer" }, "Get a free FRED API key"))), /*#__PURE__*/
-
-
-
-    React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Choose another FRED series to fetch" }, /*#__PURE__*/
-    React.createElement("select", { className: "field", value: series, onChange: e => setSeries(e.target.value) },
-    Object.entries(FRED_SERIES).map(([k, v]) => /*#__PURE__*/React.createElement("option", { key: k, value: k }, v)))), /*#__PURE__*/
-
-
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "Selected series"), /*#__PURE__*/
-    React.createElement("div", { className: "text-sm" }, FRED_SERIES[series]), /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500 mt-1" },
-    fredKey ? selected ? `${selected.value} (as of ${selected.date})` : 'No data yet — click Refresh' : 'Enter API key to fetch')), /*#__PURE__*/
-
-
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-    React.createElement("div", { className: "text-sm" }, status))), /*#__PURE__*/
-
-
-
-    React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "30-yr mortgage rate"), /*#__PURE__*/
-    React.createElement("div", { className: "text-lg font-semibold" }, (_rates$m = rates.m30) !== null && _rates$m !== void 0 && _rates$m.value ? `${rates.m30.value.toFixed(2)}%` : '—'), /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, ((_rates$m2 = rates.m30) === null || _rates$m2 === void 0 ? void 0 : _rates$m2.date) || '')), /*#__PURE__*/
-
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "15-yr mortgage rate"), /*#__PURE__*/
-    React.createElement("div", { className: "text-lg font-semibold" }, (_rates$m3 = rates.m15) !== null && _rates$m3 !== void 0 && _rates$m3.value ? `${rates.m15.value.toFixed(2)}%` : '—'), /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, ((_rates$m4 = rates.m15) === null || _rates$m4 === void 0 ? void 0 : _rates$m4.date) || '')), /*#__PURE__*/
-
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "5/1 ARM rate"), /*#__PURE__*/
-    React.createElement("div", { className: "text-lg font-semibold" }, (_rates$arm = rates.arm5) !== null && _rates$arm !== void 0 && _rates$arm.value ? `${rates.arm5.value.toFixed(2)}%` : '—'), /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, ((_rates$arm2 = rates.arm5) === null || _rates$arm2 === void 0 ? void 0 : _rates$arm2.date) || ''))), /*#__PURE__*/
-
-
-
-    React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
-    React.createElement("div", { className: "text-lg font-semibold" }, home !== null && home !== void 0 && home.value ? money0(home.value) : '—'), /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, (home === null || home === void 0 ? void 0 : home.name) || '')), /*#__PURE__*/
-
-    React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "Location"), /*#__PURE__*/
-    React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '—'))), /*#__PURE__*/
-
-
-
-    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh.")));
-
-
+      React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
+  );
 }
-
 /* --------------------------- Landing + Tabs --------------------------- */
 const TABS = [
 { id: 'home', label: 'Home' },
@@ -1219,21 +1129,21 @@ const TABS = [
 { id: 'retire', label: 'Retirement' },
 { id: 'debt', label: 'Debt Payoff' },
 { id: 'auto', label: 'Auto' },
-{ id: 'rent', label: 'Rent vs Buy' },
+{ id: 'rent', label: 'Home Affordability' },
 { id: 'networth', label: 'Net Worth' },
 { id: 'tax', label: 'Tax' },
 { id: 'data', label: 'Data' }];
 
 const CARDS = [
-{ id: 'mortgage', title: 'Mortgage / Loan', why: 'Estimate payment & interest; analysis for extra payments, refi, or lump-sum. Adds 15-yr & ARM lines for context.' },
-{ id: 'compound', title: 'Compound Interest', why: 'Project growth with ongoing contributions (uses “Return”).' },
-{ id: 'retire', title: 'Retirement Goal', why: 'Monthly needed to reach a target by a date (uses “Return”).' },
-{ id: 'debt', title: 'Debt Payoff', why: 'Simulate multi-debt payoff (Avalanche/Snowball) with a big progress chart.' },
-{ id: 'auto', title: 'Auto Affordability', why: 'Back into max loan and compare Lease vs Buy simply.' },
-{ id: 'rent', title: 'Rent vs Buy', why: 'Back into an affordable home value from your base rent and carrying costs.' },
-{ id: 'networth', title: 'Net Worth', why: 'Typed accounts + color-coded balance sheet breakdown.' },
-{ id: 'tax', title: 'Taxes (2025)', why: 'See federal + state income tax estimates with current brackets.' },
-{ id: 'data', title: 'Data Sources', why: 'Fetch FRED & Census; drive placeholders across tools.' }];
+{ id: 'mortgage', title: 'Mortgage / Loan', why: 'Estimate payments and compare strategies like extra payments, refinancing, or lump sums.' },
+{ id: 'compound', title: 'Compound Interest', why: 'See how savings grow with regular contributions and a rate of return.' },
+{ id: 'retire', title: 'Retirement Goal', why: 'Calculate the monthly amount needed to reach a nest egg by a target date.' },
+{ id: 'debt', title: 'Debt Payoff', why: 'Plan multi-debt payoff using Avalanche or Snowball methods.' },
+{ id: 'auto', title: 'Auto Affordability', why: 'Work backward from a payment to a max car price and compare lease vs buy.' },
+{ id: 'rent', title: 'Home Affordability', why: 'Compare renting and buying to gauge what home price fits your budget.' },
+{ id: 'networth', title: 'Net Worth', why: 'Break down assets and liabilities with a color-coded balance sheet.' },
+{ id: 'tax', title: 'Taxes (2025)', why: 'Estimate federal and state income tax with current brackets.' },
+{ id: 'data', title: 'Data Sources', why: 'Load ZIP and Census data to fill placeholders automatically.' }];
 
 function Home({ onOpen }) {
   return /*#__PURE__*/(
