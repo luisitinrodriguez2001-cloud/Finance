@@ -9,21 +9,22 @@ async function askGPT() {
   answerDiv.textContent = 'Thinking...';
 
   try {
-    const res = await fetch('https://api.openai.com/v1/responses', {
+    // Use the general OpenAI chat model so the AI always provides a reply
+    const res = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        model: 'gpt-4.1',
-        input: question
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: question }]
       })
     });
 
     const data = await res.json();
-    const text = data?.output?.[0]?.content?.[0]?.text?.value || 'No answer';
-    answerDiv.textContent = text;
+    const text = data?.choices?.[0]?.message?.content?.trim();
+    answerDiv.textContent = text || "I'm not sure, but I couldn't find an answer.";
   } catch (err) {
     answerDiv.textContent = 'Error: ' + err.message;
   }
