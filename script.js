@@ -30,7 +30,7 @@ const SOCIALS = {
 
 const IconLink = ({ href, label, children }) => /*#__PURE__*/
 React.createElement("a", { href: href, target: "_blank", rel: "noreferrer",
-  className: "icon-btn hover:bg-slate-100 transition-colors duration-150", "aria-label": label, title: label },
+  className: "icon-btn transition-colors duration-150", "aria-label": label, title: label },
 children);
 
 
@@ -45,9 +45,9 @@ React.createElement(IconLink, { href: SOCIALS.tiktok, label: "TikTok" }, /*#__PU
 
 
 /* ----------------------- Settings ----------------------- */
-function SettingsPanel({ config, onChange }) {
+function SettingsPage({ config, onChange, onBack }) {
   return /*#__PURE__*/(
-    React.createElement("div", { className: "absolute top-full right-0 mt-2 w-56 p-4 border rounded-xl bg-white shadow-card space-y-3", style: { zIndex: 1000 } }, /*#__PURE__*/
+    React.createElement(Section, { title: "Settings", right: /*#__PURE__*/React.createElement("button", { className: "kbd", onClick: onBack }, "Home") }, /*#__PURE__*/React.createElement("div", { className: "space-y-3" }, /*#__PURE__*/
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Theme"), /*#__PURE__*/
     React.createElement("select", { className: "field", value: config.theme, onChange: e => onChange('theme', e.target.value) }, /*#__PURE__*/
@@ -59,7 +59,7 @@ function SettingsPanel({ config, onChange }) {
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Font size"), /*#__PURE__*/
     React.createElement("select", { className: "field", value: config.font, onChange: e => onChange('font', e.target.value) }, /*#__PURE__*/
-    React.createElement("option", { value: "base" }, "Base"), /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"), /*#__PURE__*/React.createElement("option", { value: "large" }, "Large")))));
+    React.createElement("option", { value: "base" }, "Base"), /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"), /*#__PURE__*/React.createElement("option", { value: "large" }, "Large")))))));
 }
 
 /* ----------------------- Formatters & math ----------------------- */
@@ -1360,9 +1360,9 @@ function Home({ onOpen }) {
     React.createElement(Section, { title: "Pick a Calculator", right: /*#__PURE__*/React.createElement("span", { className: "text-xs text-slate-500" }, "Everything updates instantly") }, /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-2 lg:grid-cols-3 gap-3" },
     CARDS.map((c) => /*#__PURE__*/
-    React.createElement("div", { key: c.id, className: "p-4 rounded-2xl border bg-white/70 hover:shadow-card transition" }, /*#__PURE__*/
+    React.createElement("div", { key: c.id, className: "p-4 rounded-2xl border hover:shadow-card transition", style: { background: "var(--card-bg)" } }, /*#__PURE__*/
     React.createElement("div", { className: "font-medium mb-1" }, c.title), /*#__PURE__*/
-    React.createElement("p", { className: "text-sm text-slate-600 mb-3" }, c.why), /*#__PURE__*/
+    React.createElement("p", { className: "text-sm mb-3" }, c.why), /*#__PURE__*/
     React.createElement("button", { className: "kbd", onClick: () => onOpen(c.id) }, "Open"))))));
 
 
@@ -1396,10 +1396,10 @@ function FunFacts({ topic }) {
 
   if (!facts.length) return null;
   return /*#__PURE__*/(
-    React.createElement("div", { className: "mt-4 px-4 py-3 bg-white border rounded-xl flex items-center justify-between gap-3 shadow-card" }, /*#__PURE__*/
-    React.createElement("span", { className: "text-sm text-slate-700" }, fact), /*#__PURE__*/
+    React.createElement("div", { className: "mt-4 px-4 py-3 border rounded-xl flex items-center justify-between gap-3 shadow-card", style: { background: "var(--card-bg)" } }, /*#__PURE__*/
+    React.createElement("span", { className: "text-sm" }, fact), /*#__PURE__*/
     React.createElement("button", {
-      className: "icon-btn hover:bg-slate-100 transition-colors duration-150",
+      className: "icon-btn transition-colors duration-150",
       onClick: shuffle,
       title: "Shuffle fun fact",
       "aria-label": "Shuffle fun fact",
@@ -1411,7 +1411,6 @@ function FunFacts({ topic }) {
 function App() {
   const [view, setView] = useState('home');
   const [placeholders, setPlaceholders] = useState(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [settings, setSettings] = useLocalStorage('settings', { theme: 'light', accent: 'slate', font: 'base' });
 
   useEffect(() => {
@@ -1432,15 +1431,14 @@ function App() {
     React.createElement("div", { className: "w-16 h-16 rounded-2xl bg-yellow-100 flex items-center justify-center text-3xl shadow select-none", title: "Hi!", "aria-hidden": true }, "\uD83D\uDE42"), /*#__PURE__*/
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("h1", { className: "text-2xl md:text-3xl font-bold tracking-tight" }, "Finance Calculators"), /*#__PURE__*/
-    React.createElement("p", { className: "text-slate-600" }, "Your clean, accurate, no-fluff toolkit."))), /*#__PURE__*/
+    React.createElement("p", null, "Your clean, accurate, no-fluff toolkit."))), /*#__PURE__*/
 
 
 
     React.createElement("div", { className: "flex flex-col items-end gap-2 relative" }, /*#__PURE__*/
     React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
     React.createElement(SocialBar, null), /*#__PURE__*/
-    React.createElement("button", { className: "icon-btn hover:bg-slate-100 transition-colors duration-150", onClick: () => setSettingsOpen(o => !o), "aria-label": "Settings", title: "Settings" }, "\u2699\uFE0F")), /*#__PURE__*/
-    settingsOpen && /*#__PURE__*/React.createElement(SettingsPanel, { config: settings, onChange: updateSetting }), /*#__PURE__*/
+    React.createElement("button", { className: "icon-btn transition-colors duration-150", onClick: () => setView('settings'), "aria-label": "Settings", title: "Settings" }, "\u2699\uFE0F")), /*#__PURE__*/
     React.createElement("span", { className: "text-[11px] text-slate-500" }, "@luisitin2001"))), /*#__PURE__*/
 
 
@@ -1452,7 +1450,7 @@ function App() {
     TABS.map((t) => /*#__PURE__*/
     React.createElement("button", { key: t.id, role: "tab", "aria-selected": view === t.id ? 'true' : 'false',
       onClick: () => setView(t.id),
-      className: (view === t.id ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'tab-btn border rounded-2xl px-3 py-2 transition-colors text-[13px] sm:text-sm' },
+      className: (view === t.id ? 'bg-slate-900 text-white ' : '') + 'tab-btn border rounded-2xl px-3 py-2 transition-colors text-[13px] sm:text-sm' },
     t.label))))), /*#__PURE__*/
     React.createElement(FunFacts, { topic: view }), /*#__PURE__*/
 
@@ -1472,7 +1470,8 @@ function App() {
     view === 'rent' && /*#__PURE__*/React.createElement(HomeAffordability, { placeholders: placeholders }),
     view === 'networth' && /*#__PURE__*/React.createElement(NetWorth, null),
     view === 'tax' && /*#__PURE__*/React.createElement(TaxCalc, null),
-    view === 'data' && /*#__PURE__*/React.createElement(DataPanel, { onPlaceholders: setPlaceholders })), /*#__PURE__*/
+    view === 'data' && /*#__PURE__*/React.createElement(DataPanel, { onPlaceholders: setPlaceholders }),
+    view === 'settings' && /*#__PURE__*/React.createElement(SettingsPage, { config: settings, onChange: updateSetting, onBack: () => setView('home') })), /*#__PURE__*/
 
 
     React.createElement("div", { className: "text-center text-xs text-slate-500 space-y-2 mt-8 mb-8" }, /*#__PURE__*/

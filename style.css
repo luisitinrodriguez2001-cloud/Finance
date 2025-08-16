@@ -19,16 +19,16 @@ html { font-size: var(--base-font-size); background: var(--bg); }
 body { background: var(--bg); color: var(--text); }
 
 [data-theme='dark'] {
-  --bg: #0f172a;
-  --text: #f8fafc;
-  --card-bg: rgba(30,41,59,.8);
-  --border: #334155;
-  --input-bg: #1e293b;
-  --input-text: #f8fafc;
-  --result-bg1: #1e293b;
-  --result-bg2: #0f172a;
-  --tag-bg: #334155;
-  --tag-text: #f1f5f9;
+   --bg: #0f172a;
+   --text: #f8fafc;
+   --card-bg: #0f172a;
+   --border: #334155;
+   --input-bg: #0f172a;
+   --input-text: #f8fafc;
+   --result-bg1: #0f172a;
+   --result-bg2: #0f172a;
+   --tag-bg: #334155;
+   --tag-text: #f1f5f9;
 }
 
 [data-accent='slate'] { --accent: #0f172a; --accent-text: #fff; }
@@ -60,7 +60,8 @@ body { background: var(--bg); color: var(--text); }
 }
 .kbd:hover{filter:brightness(1.05)} .kbd:active{transform:translateY(1px)}
 
-.tab-btn { box-shadow:0 1px 0 rgba(0,0,0,.03); }
+.tab-btn { box-shadow:0 1px 0 rgba(0,0,0,.03); background: var(--input-bg); color: var(--text); }
+.tab-btn:hover { background: var(--tag-bg); }
 .tabs-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:thin; scrollbar-color:#cbd5e1 transparent; }
 .tabs-scroll::-webkit-scrollbar { height:8px; }
 .tabs-scroll::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:999px; }
