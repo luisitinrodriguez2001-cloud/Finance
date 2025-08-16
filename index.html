@@ -35,6 +35,16 @@
   <!-- React mount -->
   <main id="root" class="min-h-screen"></main>
 
+  <!-- Simple GPT-4.1 demo -->
+  <section id="ai-ask" class="max-w-2xl mx-auto p-4">
+    <h2 class="text-xl font-semibold mb-2">Ask AI</h2>
+    <div class="flex gap-2">
+      <input id="question-input" class="flex-grow border rounded p-2" placeholder="Ask a question" />
+      <button id="ask-btn" class="bg-blue-500 text-white px-4 py-2 rounded">Ask</button>
+    </div>
+    <div id="answer" class="mt-2 text-slate-700"></div>
+  </section>
+
   <noscript>
     <div class="max-w-lg mx-auto p-6 m-4 rounded-xl border bg-white text-slate-800">
       <h2 class="text-xl font-semibold mb-2">JavaScript is required</h2>
@@ -58,5 +68,6 @@
 
   <!-- Your app (JSX) -->
   <script type="text/babel" data-presets="env,react" src="script.js"></script>
+  <script src="gpt.js"></script>
 </body>
 </html>
