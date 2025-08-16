@@ -34,8 +34,8 @@ React.createElement("a", { href: href, target: "_blank", rel: "noreferrer",
 children);
 
 
-const InstagramSVG = () => /*#__PURE__*/React.createElement("img", { src: "instagram.svg", width: "16", height: "16", alt: "", "aria-hidden": "true" });
-const TikTokSVG = () => /*#__PURE__*/React.createElement("img", { src: "tiktok.svg", width: "16", height: "16", alt: "", "aria-hidden": "true" });
+const InstagramSVG = () => /*#__PURE__*/React.createElement("img", { src: "instagram.svg", width: "16", height: "16", alt: "", "aria-hidden": "true", className: "social-icon" });
+const TikTokSVG = () => /*#__PURE__*/React.createElement("img", { src: "tiktok.svg", width: "16", height: "16", alt: "", "aria-hidden": "true", className: "social-icon" });
 const SocialBar = () => /*#__PURE__*/
 React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
 React.createElement(IconLink, { href: SOCIALS.instagram, label: "Instagram" }, /*#__PURE__*/React.createElement(InstagramSVG, null)), /*#__PURE__*/
@@ -154,11 +154,16 @@ async function fetchMedianIncomeByZip(zip) {
 async function fetchCitySuggestions(q) {
   if (!q) return [];
   const url = `https://api.geonames.org/postalCodeSearchJSON?placename_startsWith=${encodeURIComponent(q)}&country=US&maxRows=5&username=demo`;
-  const r = await fetch(url);
-  if (!r.ok) return [];
-  const j = await r.json();
-  const arr = Array.isArray(j.postalCodes) ? j.postalCodes : [];
-  return arr.map(p => ({ city: p.placeName, state: p.adminCode1, zip: p.postalCode }));
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('geoNames error');
+    const j = await r.json();
+    const arr = Array.isArray(j.postalCodes) ? j.postalCodes : [];
+    return arr.map(p => ({ city: p.placeName, state: p.adminCode1, zip: p.postalCode }));
+  } catch (e) {
+    console.warn('City suggestion fetch failed', e);
+    return [];
+  }
 }
 
 /* ----------------------- Micro UI ----------------------- */
@@ -1134,7 +1139,7 @@ function DataPanel({ onPlaceholders }) {
   useEffect(() => { refresh(); }, []);
   useEffect(() => {
     let active = true;
-    if (cityQuery.length < 2) { setSuggestions([]); return; }
+    if (cityQuery.length < 3) { setSuggestions([]); return; }
     fetchCitySuggestions(cityQuery).then(list => { if (active) setSuggestions(list); }).catch(_ => {});
     return () => { active = false; };
   }, [cityQuery]);
@@ -1461,6 +1466,12 @@ function App() {
     document.documentElement.dataset.theme = settings.theme;
     document.documentElement.dataset.accent = settings.accent;
     document.documentElement.dataset.font = settings.font;
+    document.body.classList.remove('bg-slate-50', 'text-slate-900', 'bg-slate-900', 'text-slate-50');
+    if (settings.theme === 'dark') {
+      document.body.classList.add('bg-slate-900', 'text-slate-50');
+    } else {
+      document.body.classList.add('bg-slate-50', 'text-slate-900');
+    }
     const meta = document.querySelector('meta[name=color-scheme]');
     if (meta) meta.setAttribute('content', settings.theme === 'dark' ? 'dark light' : 'light dark');
   }, [settings]);
@@ -1482,7 +1493,7 @@ function App() {
     React.createElement("div", { className: "flex flex-col items-end gap-2 relative" }, /*#__PURE__*/
     React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
     React.createElement(SocialBar, null), /*#__PURE__*/
-    React.createElement("button", { className: "icon-btn hover:bg-slate-100 transition-colors duration-150", onClick: () => setSettingsOpen(o => !o), "aria-label": "Settings", title: "Settings" }, "\u2699\uFE0F")), /*#__PURE__*/
+    React.createElement("button", { className: "icon-btn hover:bg-slate-100 transition-colors duration-150", onClick: () => setSettingsOpen(o => !o), "aria-label": "Settings", title: "Settings", "aria-expanded": settingsOpen }, "\u2699\uFE0F")), /*#__PURE__*/
     settingsOpen && /*#__PURE__*/React.createElement(SettingsPanel, { config: settings, onChange: updateSetting }), /*#__PURE__*/
     React.createElement("span", { className: "text-[11px] text-slate-500" }, "@luisitin2001"))), /*#__PURE__*/
 
