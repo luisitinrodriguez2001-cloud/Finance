@@ -151,20 +151,6 @@ async function fetchMedianIncomeByZip(zip) {
   const n = parseFloat(val);
   return Number.isFinite(n) ? { name, value: n } : null;
 }
-async function fetchCitySuggestions(q) {
-  if (!q) return [];
-  const url = `https://api.geonames.org/postalCodeSearchJSON?placename_startsWith=${encodeURIComponent(q)}&country=US&maxRows=5&username=demo`;
-  try {
-    const r = await fetch(url);
-    if (!r.ok) throw new Error('geoNames error');
-    const j = await r.json();
-    const arr = Array.isArray(j.postalCodes) ? j.postalCodes : [];
-    return arr.map(p => ({ city: p.placeName, state: p.adminCode1, zip: p.postalCode }));
-  } catch (e) {
-    console.warn('City suggestion fetch failed', e);
-    return [];
-  }
-}
 
 /* ----------------------- Micro UI ----------------------- */
 const Section = ({ title, right, children }) => /*#__PURE__*/
@@ -1103,14 +1089,38 @@ function HomeAffordability({ placeholders }) {var _placeholders$mortgag2;
 
 }
 
+/* ----------------------- Social Security benefit comparison ----------------------- */
+function SocialSecurity() {
+  const [pia, setPia] = useState();
+  const [piaPct, setPiaPct] = useState(75);
+
+  const piaPH = 2000;
+  const piaX = pia ?? piaPH;
+  const piaPctX = piaPct ?? 75;
+
+  const base = piaX * (piaPctX / 100);
+  const factors = {62:0.70,63:0.75,64:0.80,65:0.867,66:0.933,67:1.00,68:1.08,69:1.16,70:1.24};
+  const ages = Object.keys(factors).map(a => parseInt(a,10));
+  const full = base * factors[67];
+
+  return /*#__PURE__*/(
+    React.createElement(Section, { title: "Social Security Benefits" }, /*#__PURE__*/
+      React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
+        React.createElement(Field, { label: "PIA (monthly, FRA)" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: pia, onChange: setPia, placeholder: money0(piaPH) })), /*#__PURE__*/
+        React.createElement(Field, { label: "PIA %" }, /*#__PURE__*/React.createElement(PercentInput, { value: piaPct, onChange: setPiaPct, placeholder: "75" }))), /*#__PURE__*/
+      React.createElement("div", { className: "mt-4 overflow-x-auto" }, /*#__PURE__*/
+        React.createElement("table", { className: "min-w-full text-sm" }, /*#__PURE__*/
+          React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", { className: "text-left p-1" }, "Age"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Monthly"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "vs 67"))), /*#__PURE__*/
+          React.createElement("tbody", null, ages.map(age => { const amt = base * factors[age]; const diff = amt - full; return /*#__PURE__*/React.createElement("tr", { key: age, className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, age), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(amt)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, diff === 0 ? '\u2013' : (diff > 0 ? '+' : '') + money0(diff))); })))) , /*#__PURE__*/
+      React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Source: ", /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.ssa.gov/oact/quickcalc/early_late.html", target: "_blank", rel: "noreferrer" }, "Social Security Administration"))));
+}
+
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
 function DataPanel({ onPlaceholders }) {
   const [zip, setZip] = useLocalStorage('zip', '90210');
   const [area, setArea] = useState(null);
   const [home, setHome] = useState(null);
   const [income, setIncome] = useState(null);
-  const [cityQuery, setCityQuery] = useState('');
-  const [suggestions, setSuggestions] = useState([]);
   const [status, setStatus] = useState('');
 
   const refresh = async () => {
@@ -1137,21 +1147,13 @@ function DataPanel({ onPlaceholders }) {
   };
 
   useEffect(() => { refresh(); }, []);
-  useEffect(() => {
-    let active = true;
-    if (cityQuery.length < 3) { setSuggestions([]); return; }
-    fetchCitySuggestions(cityQuery).then(list => { if (active) setSuggestions(list); }).catch(_ => {});
-    return () => { active = false; };
-  }, [cityQuery]);
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Data (live placeholders)" }, /*#__PURE__*/
       React.createElement("div", { className: "grid md:grid-cols-2 gap-3" }, /*#__PURE__*/
-        React.createElement(Field, { label: "City search (auto ZIP)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-          React.createElement("input", { className: "field", value: cityQuery, onChange: e => { setCityQuery(e.target.value); const m = e.target.value.match(/(\d{5})$/); if (m) setZip(m[1]); }, list: "city-suggest", placeholder: "Omaha" }), /*#__PURE__*/
-          React.createElement("datalist", { id: "city-suggest" }, suggestions.map(s => /*#__PURE__*/React.createElement("option", { key: s.zip, value: `${s.city}, ${s.state} ${s.zip}` }))))), /*#__PURE__*/
-        React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/
-          React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" })), /*#__PURE__*/
+        React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+          React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" }), /*#__PURE__*/
+          React.createElement("a", { className: "text-xs underline block mt-1", href: "https://tools.usps.com/zip-code-lookup.htm", target: "_blank", rel: "noreferrer" }, "Find ZIP by city"))), /*#__PURE__*/
         React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
           React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))), /*#__PURE__*/
 
@@ -1189,6 +1191,7 @@ const TABS = [
 { id: 'rent', label: 'Home Affordability' },
 { id: 'networth', label: 'Net Worth' },
 { id: 'tax', label: 'Tax' },
+{ id: 'ss', label: 'Social Security' },
 { id: 'data', label: 'Data' }];
 
 const CARDS = [
@@ -1200,6 +1203,7 @@ const CARDS = [
 { id: 'rent', title: 'Home Affordability', why: 'Derive an affordable purchase price and housing cost from your rent and expenses.' },
 { id: 'networth', title: 'Net Worth', why: 'Track assets and liabilities with a color-coded balance sheet.' },
 { id: 'tax', title: 'Taxes (2025)', why: 'Approximate federal and state income taxes with current brackets.' },
+{ id: 'ss', title: 'Social Security', why: 'Compare benefits at different retirement ages.' },
 { id: 'data', title: 'Data Sources', why: 'Load open ZIP-based data like home values to prefill placeholders.' }];
 
 const FUN_FACTS = {
@@ -1379,6 +1383,13 @@ const FUN_FACTS = {
     'Tax audits are rare, with less than 1% of returns examined.',
     'The U.S. tax code spans thousands of pages.'
   ],
+  ss: [
+    'Social Security was established in 1935.',
+    'Delaying benefits past full retirement age increases payments by about 8% per year until age 70.',
+    'About 67 million Americans received Social Security benefits in 2023.',
+    'Social Security is primarily funded by payroll taxes under FICA.',
+    'The first monthly Social Security check was issued in 1940.'
+  ],
   data: [
     'Open data portals let you download housing and wage statistics for free.',
     'ZIP Codes were created in 1963 to speed up mail delivery.',
@@ -1526,6 +1537,7 @@ function App() {
     view === 'rent' && /*#__PURE__*/React.createElement(HomeAffordability, { placeholders: placeholders }),
     view === 'networth' && /*#__PURE__*/React.createElement(NetWorth, null),
     view === 'tax' && /*#__PURE__*/React.createElement(TaxCalc, null),
+    view === 'ss' && /*#__PURE__*/React.createElement(SocialSecurity, null),
     view === 'data' && /*#__PURE__*/React.createElement(DataPanel, { onPlaceholders: setPlaceholders })), /*#__PURE__*/
 
 
