@@ -71,6 +71,9 @@ body { background: var(--bg); color: var(--text); }
 .icon-btn { width:1.8rem; height:1.8rem; display:grid; place-items:center; border-radius:.5rem; border:1px solid var(--border); background: var(--input-bg); color:#64748b; }
 [data-theme='dark'] .icon-btn { color:#cbd5e1; }
 
+.social-icon { transition:filter .2s ease; }
+[data-theme='dark'] .social-icon { filter:invert(1); }
+
 .tooltip-panel { border:1px solid var(--border); border-radius:.75rem; background:var(--input-bg); box-shadow:0 10px 30px rgba(2,6,23,.12),0 2px 8px rgba(2,6,23,.08); }
 .animate-fadeUp { animation: fadeUp .5s cubic-bezier(.2,.7,.2,1) both; }
 @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
