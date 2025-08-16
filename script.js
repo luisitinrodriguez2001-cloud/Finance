@@ -153,7 +153,7 @@ async function fetchMedianIncomeByZip(zip) {
 }
 async function fetchCitySuggestions(q) {
   if (!q) return [];
-  const url = `https://secure.geonames.org/postalCodeSearchJSON?placename=${encodeURIComponent(q)}&country=US&maxRows=5&username=demo`;
+  const url = `https://api.geonames.org/postalCodeSearchJSON?placename_startsWith=${encodeURIComponent(q)}&country=US&maxRows=5&username=demo`;
   const r = await fetch(url);
   if (!r.ok) return [];
   const j = await r.json();
