@@ -1,30 +1,14 @@
-const apiKey = ''; // TODO: Replace with your OpenAI API key
+let generator;
 
-// Track previous sanity check responses to ensure uniqueness
-const sanityResponses = new Set();
-
-async function sanityCheck() {
+async function loadModel() {
+  const answerDiv = document.getElementById('answer');
   try {
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: 'Return a random unique token.' }]
-      })
-    });
-
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content?.trim();
-    if (!text || sanityResponses.has(text)) return false;
-    sanityResponses.add(text);
-    return true;
+    answerDiv.textContent = 'Loading model...';
+    const { pipeline } = window.transformers;
+    generator = await pipeline('text-generation', 'Xenova/gpt2');
   } catch (err) {
-    console.error('Sanity check failed:', err);
-    return false;
+    answerDiv.textContent = 'Failed to load model: ' + err.message;
+    throw err;
   }
 }
 
@@ -34,32 +18,15 @@ async function askGPT() {
   const question = questionInput.value.trim();
   if (!question) return;
 
-  answerDiv.textContent = 'Running sanity check...';
-  const unique = await sanityCheck();
-  if (!unique) {
-    answerDiv.textContent = 'Sanity check failed: duplicate response from OpenAI.';
-    return;
-  }
-
-  answerDiv.textContent = 'Thinking...';
-
   try {
-    // Use the general OpenAI chat model so the AI always provides a reply
-    const res = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: question }]
-      })
-    });
-
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content?.trim();
-    answerDiv.textContent = text || "I'm not sure, but I couldn't find an answer.";
+    if (!generator) {
+      await loadModel();
+    } else {
+      answerDiv.textContent = 'Thinking...';
+    }
+    const result = await generator(question, { max_new_tokens: 100 });
+    const text = result?.[0]?.generated_text?.trim();
+    answerDiv.textContent = text || "I don't have an answer.";
   } catch (err) {
     answerDiv.textContent = 'Error: ' + err.message;
   }
