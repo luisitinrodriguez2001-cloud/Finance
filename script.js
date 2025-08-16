@@ -68,7 +68,7 @@ const money0 = n => {var _window$accounting$fo, _window$accounting, _window$acco
 const money2 = n => {var _window$accounting$fo3, _window$accounting2, _window$accounting2$f;return (_window$accounting$fo3 = (_window$accounting2 = window.accounting) === null || _window$accounting2 === void 0 ? void 0 : (_window$accounting2$f = _window$accounting2.formatMoney) === null || _window$accounting2$f === void 0 ? void 0 : _window$accounting2$f.call(_window$accounting2, n !== null && n !== void 0 ? n : 0, { precision: 2 })) !== null && _window$accounting$fo3 !== void 0 ? _window$accounting$fo3 :
   (n !== null && n !== void 0 ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 });};
 const monthlyRate = apr => (apr !== null && apr !== void 0 ? apr : 0) / 100 / 12;
-const months = y => Math.max(1, Math.round((y !== null && y !== void 0 ? y : 0) * 12));
+const months = (y, allowZero = false) => Math.max(allowZero ? 0 : 1, Math.round((y !== null && y !== void 0 ? y : 0) * 12));
 function pmt({ principal, apr, years }) {
   const i = monthlyRate(apr),N = months(years);
   if (i === 0) return principal / N;
@@ -93,11 +93,14 @@ function requiredMonthly({ goal = 0, principal = 0, apr = 0, years = 0 }) {
 function buildSchedule({ principal, apr, years, extraMonthly = 0, lumpMonth = null, lumpAmount = 0 }) {
   const i = monthlyRate(apr),N = months(years),base = pmt({ principal, apr, years });
   let bal = principal,month = 0,totalInterest = 0,rows = [];
+  if ((lumpMonth !== null && lumpMonth !== void 0 ? lumpMonth : null) === 0) {
+    bal = Math.max(0, bal - lumpAmount);
+  }
   while (bal > 0.01 && month < 3600) {
     month++;
     let interest = bal * i;
     let principalPaid = base - interest + (extraMonthly || 0);
-    if (lumpMonth && month === lumpMonth) principalPaid += lumpAmount;
+    if (lumpMonth !== null && lumpMonth !== void 0 && month === lumpMonth) principalPaid += lumpAmount;
     if (principalPaid > bal + interest) principalPaid = bal + interest;
     const payment = principalPaid + interest;
     bal = Math.max(0, bal - principalPaid);
@@ -137,6 +140,25 @@ async function fetchMedianHomeValueByZip(zip) {
   const [val, name] = rows[1];
   const n = parseFloat(val);
   return Number.isFinite(n) ? { name, value: n } : null;
+}
+async function fetchMedianIncomeByZip(zip) {
+  const url = `https://api.census.gov/data/2022/acs/acs5?get=B19013_001E,NAME&for=zip%20code%20tabulation%20area:${encodeURIComponent(zip)}`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Census error');
+  const rows = await r.json();
+  if (!Array.isArray(rows) || rows.length < 2) return null;
+  const [val, name] = rows[1];
+  const n = parseFloat(val);
+  return Number.isFinite(n) ? { name, value: n } : null;
+}
+async function fetchCitySuggestions(q) {
+  if (!q) return [];
+  const url = `https://secure.geonames.org/postalCodeSearchJSON?placename=${encodeURIComponent(q)}&country=US&maxRows=5&username=demo`;
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const j = await r.json();
+  const arr = Array.isArray(j.postalCodes) ? j.postalCodes : [];
+  return arr.map(p => ({ city: p.placeName, state: p.adminCode1, zip: p.postalCode }));
 }
 
 /* ----------------------- Micro UI ----------------------- */
@@ -235,7 +257,7 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
     const nYears = newYears !== null && newYears !== void 0 ? newYears : yearsX;
     const cc = closingCosts !== null && closingCosts !== void 0 ? closingCosts : 3000;
 
-    const k = months(kYears || 0);
+    const k = months(kYears || 0, true);
     const remain = remainingBalance({ principal: principalX, apr: aprX, years: yearsX, monthsElapsed: k });
     const newBalance = Math.max(0, remain + cc);
     const newLoan = loanPayment({ principal: newBalance, apr: nAPR, years: nYears });
@@ -282,7 +304,7 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
       };
     }
     if (mode === 'refi' && refi) {
-      const k = months(elapsedY || 0);
+    const k = months(elapsedY || 0, true);
       let paid = 0;
       for (let i = 0; i < Math.min(k, baseSched.rows.length); i++) {
         paid += baseSched.rows[i].interest;
@@ -342,9 +364,12 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
       } else if (mode === 'lump' && lumpSched) {
         const i2 = monthlyRate(aprX),pay2 = res.payment;
         let bb = principalX;const map = {};const set = new Set(labels);
+        if ((lumpMonth !== null && lumpMonth !== void 0 ? lumpMonth : null) === 0) {
+          bb = Math.max(0, bb - (lumpAmt || 0));
+        }
         for (let m = 1; m <= res.N; m++) {
           const interest = bb * i2;let principal = pay2 - interest;
-          if (m === (lumpMonth || 0)) principal += lumpAmt || 0;
+          if (lumpMonth !== null && lumpMonth !== void 0 && m === lumpMonth) principal += lumpAmt || 0;
           bb = Math.max(0, bb - principal);
           if (set.has(m)) map[m] = Math.round(bb);
           if (bb <= 0) break;
@@ -422,7 +447,7 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
     React.createElement(Field, { label: "Lump amount" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: lumpAmt, onChange: setLumpAmt, placeholder: money0(5000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Apply at month" }, /*#__PURE__*/React.createElement(NumberInput, { value: lumpMonth, onChange: setLumpMonth, step: "1", placeholder: "24" }))),
 
-    savings && savings.months > 0 && savings.interest > 0 && /*#__PURE__*/
+    savings && /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Months saved"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, savings.months)), /*#__PURE__*/
     React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Interest saved"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(savings.interest)))))
@@ -1078,22 +1103,27 @@ function DataPanel({ onPlaceholders }) {
   const [zip, setZip] = useLocalStorage('zip', '90210');
   const [area, setArea] = useState(null);
   const [home, setHome] = useState(null);
+  const [income, setIncome] = useState(null);
+  const [cityQuery, setCityQuery] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
   const [status, setStatus] = useState('');
 
   const refresh = async () => {
     setStatus('Fetching…');
     try {
-      const [loc, hv] = await Promise.all([
+      const [loc, hv, inc] = await Promise.all([
         fetchZip(zip).catch(_ => null),
-        fetchMedianHomeValueByZip(zip).catch(_ => null)
+        fetchMedianHomeValueByZip(zip).catch(_ => null),
+        fetchMedianIncomeByZip(zip).catch(_ => null)
       ]);
 
       setArea(loc);
       setHome(hv);
+      setIncome(inc);
 
       const mortgageAPRPH = 6.5;
       const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
-      onPlaceholders?.({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, rates: {} });
+      onPlaceholders?.({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, income: inc, rates: {} });
       setStatus('Updated ✅');
     } catch (e) {
       console.warn('Data load failed', e);
@@ -1102,21 +1132,34 @@ function DataPanel({ onPlaceholders }) {
   };
 
   useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    let active = true;
+    if (cityQuery.length < 2) { setSuggestions([]); return; }
+    fetchCitySuggestions(cityQuery).then(list => { if (active) setSuggestions(list); }).catch(_ => {});
+    return () => { active = false; };
+  }, [cityQuery]);
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Data (live placeholders)" }, /*#__PURE__*/
       React.createElement("div", { className: "grid md:grid-cols-2 gap-3" }, /*#__PURE__*/
+        React.createElement(Field, { label: "City search (auto ZIP)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+          React.createElement("input", { className: "field", value: cityQuery, onChange: e => { setCityQuery(e.target.value); const m = e.target.value.match(/(\d{5})$/); if (m) setZip(m[1]); }, list: "city-suggest", placeholder: "Omaha" }), /*#__PURE__*/
+          React.createElement("datalist", { id: "city-suggest" }, suggestions.map(s => /*#__PURE__*/React.createElement("option", { key: s.zip, value: `${s.city}, ${s.state} ${s.zip}` }))))), /*#__PURE__*/
         React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/
           React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" })), /*#__PURE__*/
-
         React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
           React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))), /*#__PURE__*/
 
-      React.createElement("div", { className: "grid md:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
+      React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
         React.createElement("div", { className: "result" }, /*#__PURE__*/
           React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
           React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '—'), /*#__PURE__*/
           React.createElement("div", { className: "text-xs text-slate-500" }, (home == null ? void 0 : home.name) || '')), /*#__PURE__*/
+
+        React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Median household income (ACS, ZIP)"), /*#__PURE__*/
+          React.createElement("div", { className: "text-lg font-semibold" }, income && income.value ? money0(income.value) : '—'), /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, (income == null ? void 0 : income.name) || '')), /*#__PURE__*/
 
         React.createElement("div", { className: "result" }, /*#__PURE__*/
           React.createElement("div", { className: "text-xs text-slate-500" }, "Location"), /*#__PURE__*/
