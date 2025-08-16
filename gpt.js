@@ -4,8 +4,11 @@ async function loadModel() {
   const answerDiv = document.getElementById('answer');
   try {
     answerDiv.textContent = 'Loading model...';
-    const { pipeline } = window.transformers;
-    generator = await pipeline('text-generation', 'Xenova/gpt2');
+    const transformers = window.transformers;
+    if (!transformers || typeof transformers.pipeline !== 'function') {
+      throw new Error('Transformers library not loaded');
+    }
+    generator = await transformers.pipeline('text-generation', 'Xenova/gpt2');
   } catch (err) {
     answerDiv.textContent = 'Failed to load model: ' + err.message;
     throw err;
