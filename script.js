@@ -1093,6 +1093,8 @@ function HomeAffordability({ placeholders }) {var _placeholders$mortgag2;
 function SocialSecurity() {
   const [pia, setPia] = useState();
   const [piaPct, setPiaPct] = useState(75);
+  const [showEst, setShowEst] = useState(false);
+  const [estIncome, setEstIncome] = useState();
 
   const piaPH = 2000;
   const piaX = pia ?? piaPH;
@@ -1102,12 +1104,27 @@ function SocialSecurity() {
   const factors = {62:0.70,63:0.75,64:0.80,65:0.867,66:0.933,67:1.00,68:1.08,69:1.16,70:1.24};
   const ages = Object.keys(factors).map(a => parseInt(a,10));
   const full = base * factors[67];
+  const estPIA = useMemo(() => {
+    const inc = estIncome || 0;
+    if (!inc) return 0;
+    const aime = inc / 12;
+    const bend1 = 1174;
+    const bend2 = 7078;
+    let amt = Math.min(aime, bend1) * 0.9;
+    if (aime > bend1) amt += Math.min(aime - bend1, bend2 - bend1) * 0.32;
+    if (aime > bend2) amt += (aime - bend2) * 0.15;
+    return amt;
+  }, [estIncome]);
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Social Security Benefits" }, /*#__PURE__*/
       React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
-        React.createElement(Field, { label: "PIA (monthly, FRA)" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: pia, onChange: setPia, placeholder: money0(piaPH) })), /*#__PURE__*/
-        React.createElement(Field, { label: "PIA %" }, /*#__PURE__*/React.createElement(PercentInput, { value: piaPct, onChange: setPiaPct, placeholder: "75" }))), /*#__PURE__*/
+        React.createElement(Field, { label: "PIA (monthly, FRA)", hint: "Primary Insurance Amount \u2014 your benefit at full retirement age." }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement(CurrencyInput, { value: pia, onChange: setPia, placeholder: money0(piaPH) }), /*#__PURE__*/React.createElement("button", { type: "button", className: "text-xs underline mt-1", onClick: () => setShowEst(o => !o) }, "Don't know my PIA?"))), /*#__PURE__*/
+        React.createElement(Field, { label: "PIA %", hint: "Portion of your PIA you expect to collect; 75% is a conservative planning assumption." }, /*#__PURE__*/React.createElement(PercentInput, { value: piaPct, onChange: setPiaPct, placeholder: "75" }))),
+      showEst && /*#__PURE__*/React.createElement("div", { className: "mt-3 p-3 border rounded-xl space-y-2", style: { background: 'var(--input-bg)' } }, /*#__PURE__*/
+        React.createElement(Field, { label: "Average annual income" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: estIncome, onChange: setEstIncome, placeholder: money0(60000) })), /*#__PURE__*/
+        React.createElement("div", { className: "flex items-center justify-between" }, /*#__PURE__*/React.createElement("div", { className: "text-sm" }, "Estimated PIA: ", money0(estPIA)), /*#__PURE__*/React.createElement("button", { type: "button", className: "kbd", onClick: () => { setPia(Math.round(estPIA)); setShowEst(false); } }, "Use value")), /*#__PURE__*/
+        React.createElement("p", { className: "text-xs text-slate-500" }, "Simplified estimate using 2024 bend points.")), /*#__PURE__*/
       React.createElement("div", { className: "mt-4 overflow-x-auto" }, /*#__PURE__*/
         React.createElement("table", { className: "min-w-full text-sm" }, /*#__PURE__*/
           React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", { className: "text-left p-1" }, "Age"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Monthly"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "vs 67"))), /*#__PURE__*/
