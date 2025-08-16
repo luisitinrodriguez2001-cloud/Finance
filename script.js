@@ -47,7 +47,7 @@ React.createElement(IconLink, { href: SOCIALS.tiktok, label: "TikTok" }, /*#__PU
 /* ----------------------- Settings ----------------------- */
 function SettingsPanel({ config, onChange }) {
   return /*#__PURE__*/(
-    React.createElement("div", { className: "absolute top-full right-0 z-50 mt-2 w-56 p-4 border rounded-xl bg-white shadow-card space-y-3" }, /*#__PURE__*/
+    React.createElement("div", { className: "absolute top-full right-0 z-[9999] mt-2 w-56 p-4 border rounded-xl bg-white shadow-card space-y-3" }, /*#__PURE__*/
     React.createElement("div", null, /*#__PURE__*/
     React.createElement("label", { className: "block text-xs font-medium mb-1" }, "Theme"), /*#__PURE__*/
     React.createElement("select", { className: "field", value: config.theme, onChange: e => onChange('theme', e.target.value) }, /*#__PURE__*/
