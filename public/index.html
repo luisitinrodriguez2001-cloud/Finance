@@ -1,16 +1,73 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-  <meta charset="UTF-8">
-  <title>Local AI Chat</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8" />
+  <title>Finance Calculators</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="color-scheme" content="light dark" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter','ui-sans-serif','system-ui','-apple-system','Segoe UI','Roboto','Helvetica','Arial'] },
+          boxShadow: { card: '0 10px 30px rgba(2,6,23,.1),0 2px 8px rgba(2,6,23,.06)' },
+          animation: { floaty: 'floaty 8s ease-in-out infinite', fadeUp: 'fadeUp .45s cubic-bezier(.2,.7,.2,1) both' },
+          keyframes: {
+            floaty: { '0%':{transform:'translateY(0)'}, '50%':{transform:'translateY(-8px)'}, '100%':{transform:'translateY(0)'} },
+            fadeUp: { '0%':{opacity:0,transform:'translateY(6px)'}, '100%':{opacity:1,transform:'translateY(0)'} }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
-<body>
-  <div id="chat"></div>
-  <form id="form">
-    <input type="text" id="input" autocomplete="off" placeholder="Say something..." required>
-    <button type="submit">Send</button>
-  </form>
-  <script src="app.js"></script>
+<body class="bg-slate-50 text-slate-900 antialiased">
+  <!-- Ambient blobs -->
+  <div class="pointer-events-none fixed inset-0 -z-10">
+    <div class="absolute -top-24 -left-24 w-72 h-72 rounded-full bg-gradient-to-br from-amber-200 to-pink-200 blur-3xl opacity-60 animate-floaty"></div>
+    <div class="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-gradient-to-br from-emerald-200 to-sky-200 blur-3xl opacity-60 animate-floaty" style="animation-delay:-2.2s;"></div>
+  </div>
+
+  <!-- React mount -->
+  <main id="root" class="min-h-screen"></main>
+
+  <!-- Simple OpenAI chat demo -->
+  <section id="ai-ask" class="max-w-2xl mx-auto p-4">
+    <h2 class="text-xl font-semibold mb-2">Ask AI</h2>
+    <div class="flex gap-2">
+      <input id="question-input" class="flex-grow border rounded p-2" placeholder="Ask a question" />
+      <button id="ask-btn" class="bg-blue-500 text-white px-4 py-2 rounded">Ask</button>
+    </div>
+    <div id="answer" class="mt-2 text-slate-700"></div>
+  </section>
+
+  <noscript>
+    <div class="max-w-lg mx-auto p-6 m-4 rounded-xl border bg-white text-slate-800">
+      <h2 class="text-xl font-semibold mb-2">JavaScript is required</h2>
+      <p>This app uses React (via Babel) for the calculators. Please enable JavaScript.</p>
+    </div>
+  </noscript>
+
+  <!-- React 18 UMD -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Math / Dates / Charts / Formatting -->
+  <script src="https://cdn.jsdelivr.net/npm/mathjs@14.6.0/lib/browser/math.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/accounting-js@2.0.3/dist/accounting.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xirr@1.1.0/xirr.js"></script>
+
+  <!-- Babel (JSX + ESNext in the browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <!-- Your app (JSX) -->
+  <script type="text/babel" data-presets="env,react" src="script.js"></script>
+  <script src="gpt.js"></script>
 </body>
 </html>
