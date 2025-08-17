@@ -100,6 +100,7 @@ app.post('/api/chat', async (req, res) => {
 });
 
 app.use(express.static('public'));
+app.use('/finance', express.static('public'));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
