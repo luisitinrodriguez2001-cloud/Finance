@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
+const path = require('path');
 
 dotenv.config();
 
@@ -99,8 +100,10 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.use('/finance', express.static('public'));
-app.get('/', (req, res) => res.redirect('/finance'));
+app.use('/public', express.static('public'));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
