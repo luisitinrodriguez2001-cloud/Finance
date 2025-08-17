@@ -34,8 +34,8 @@ React.createElement("a", { href: href, target: "_blank", rel: "noreferrer",
 children);
 
 
-const InstagramSVG = () => /*#__PURE__*/React.createElement("img", { src: "instagram.svg", width: "16", height: "16", alt: "", "aria-hidden": "true", className: "social-icon" });
-const TikTokSVG = () => /*#__PURE__*/React.createElement("img", { src: "tiktok.svg", width: "16", height: "16", alt: "", "aria-hidden": "true", className: "social-icon" });
+const InstagramSVG = () => /*#__PURE__*/React.createElement("img", { src: "public/instagram.svg", width: "16", height: "16", alt: "", "aria-hidden": "true", className: "social-icon" });
+const TikTokSVG = () => /*#__PURE__*/React.createElement("img", { src: "public/tiktok.svg", width: "16", height: "16", alt: "", "aria-hidden": "true", className: "social-icon" });
 const SocialBar = () => /*#__PURE__*/
 React.createElement("div", { className: "flex items-center gap-2" }, /*#__PURE__*/
 React.createElement(IconLink, { href: SOCIALS.instagram, label: "Instagram" }, /*#__PURE__*/React.createElement(InstagramSVG, null)), /*#__PURE__*/
