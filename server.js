@@ -99,7 +99,8 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-app.use(express.static('public'));
+app.use('/finance', express.static('public'));
+app.get('/', (req, res) => res.redirect('/finance'));
 
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
