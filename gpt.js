@@ -1,19 +1,4 @@
-let generator;
-
-async function loadModel() {
-  const answerDiv = document.getElementById('answer');
-  try {
-    answerDiv.textContent = 'Loading model...';
-    const transformers = window.transformers;
-    if (!transformers || typeof transformers.pipeline !== 'function') {
-      throw new Error('Transformers library not loaded');
-    }
-    generator = await transformers.pipeline('text-generation', 'Xenova/gpt2');
-  } catch (err) {
-    answerDiv.textContent = 'Failed to load model: ' + err.message;
-    throw err;
-  }
-}
+const messages = [];
 
 async function askGPT() {
   const questionInput = document.getElementById('question-input');
@@ -21,15 +6,40 @@ async function askGPT() {
   const question = questionInput.value.trim();
   if (!question) return;
 
+  questionInput.value = '';
+  messages.push({ role: 'user', content: question });
+  answerDiv.textContent = 'Thinking...';
+
   try {
-    if (!generator) {
-      await loadModel();
-    } else {
-      answerDiv.textContent = 'Thinking...';
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages })
+    });
+    if (!res.ok || !res.body) {
+      throw new Error(`Request failed with status ${res.status}`);
     }
-    const result = await generator(question, { max_new_tokens: 100 });
-    const text = result?.[0]?.generated_text?.trim();
-    answerDiv.textContent = text || "I don't have an answer.";
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let assistant = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+      for (const part of parts) {
+        if (!part.startsWith('data:')) continue;
+        const token = part.slice(5).trim();
+        if (token === '[DONE]') {
+          messages.push({ role: 'assistant', content: assistant });
+          return;
+        }
+        assistant += token;
+        answerDiv.textContent = assistant;
+      }
+    }
   } catch (err) {
     answerDiv.textContent = 'Error: ' + err.message;
   }
