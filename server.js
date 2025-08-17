@@ -20,6 +20,12 @@ app.post('/api/chat', async (req, res) => {
 
   const messages = req.body.messages || [];
 
+  if (provider !== 'ollama' && !process.env.OPENAI_API_KEY) {
+    res.status(400);
+    res.write('event: error\ndata: Missing OPENAI_API_KEY\n\n');
+    return res.end();
+  }
+
   try {
     if (provider === 'ollama') {
       const base = process.env.OLLAMA_URL || 'http://localhost:11434';
@@ -53,7 +59,10 @@ app.post('/api/chat', async (req, res) => {
       const base = process.env.OPENAI_COMPAT_URL || 'http://localhost:8000/v1';
       const upstream = await fetch(`${base}/chat/completions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${process.env.OPENAI_API_KEY}`
+        },
         body: JSON.stringify({ model, messages, stream: true })
       });
       if (!upstream.ok || !upstream.body) throw new Error(`Upstream error ${upstream.status}`);
