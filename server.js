@@ -3,6 +3,9 @@ const path = require('path');
 
 const app = express();
 
+const INVESTOR_PROFILE = process.env.INVESTOR_PROFILE || '60/40';
+app.locals.investorProfile = INVESTOR_PROFILE;
+
 // Serve static assets used by the front-end. Previously only the `public`
 // directory was exposed which meant files like `/components/SourceNote.jsx`
 // and modules imported from `/sim` returned 404s in the browser. React would
