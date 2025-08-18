@@ -1251,7 +1251,14 @@ function Simulations() {
     React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
     simType === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
-    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, simType === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.' ))));
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, simType === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.' ))),
+    /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-2", className: "underline" }, "[2]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-3", className: "underline" }, "[3]")),
+    /*#__PURE__*/React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/
+      React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."), /*#__PURE__*/
+      React.createElement("li", { id: "sim-src-2" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.troweprice.com/financial-intermediary/us/en/insights/articles/2022/q2/monte-carlo-simulations-retirement-planning.html", target: "_blank", rel: "noreferrer" }, "T. Rowe Price \u2013 Monte Carlo simulations: what a good success rate looks like"), " (\u00a9 T. Rowe Price; online article)."), /*#__PURE__*/
+      React.createElement("li", { id: "sim-src-3" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://investor.vanguard.com/investor-resources-education/article/plan-for-retirement-using-monte-carlo-simulations", target: "_blank", rel: "noreferrer" }, "Vanguard \u2013 Plan for retirement using Monte Carlo simulations"), " (\u00a9 Vanguard; online article).")
+    )
+  );
 }
 
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
