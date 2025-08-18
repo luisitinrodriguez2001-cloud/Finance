@@ -11,6 +11,7 @@ const SCENARIO_DEFAULTS = {
   growth: {
     start: 10000,
     contrib: 6000,
+    goal: 1000000,
     trials: 1000,
     infl: 2
   },
@@ -1216,6 +1217,7 @@ function Simulations({ scenarioDefaults }) {
   const [mode, setMode] = useState('simple');
   const [start, setStart] = useState();
   const [contrib, setContrib] = useState();
+  const [goal, setGoal] = useState();
   const [withdraw, setWithdraw] = useState();
   const [years, setYears] = useState();
   const horizon = useMemo(() => horizonFromYears(Number(years) || 30), [years]);
@@ -1253,6 +1255,7 @@ function Simulations({ scenarioDefaults }) {
     const inf = ((infl ?? '') === '' ? scenarioDef.infl : Number(infl)) / 100;
     const startVal = Number(start ?? scenarioDef.start);
     const contribVal = Number(contrib ?? scenarioDef.contrib);
+    const goalVal = scenario === 'growth' ? (Number.isFinite(goal) ? goal : scenarioDef.goal) : 0;
     const withdrawVal = Number(withdraw ?? scenarioDef.withdraw);
     const finals = [];
     let success = 0;
@@ -1270,19 +1273,19 @@ function Simulations({ scenarioDefaults }) {
           if (bal <= 0) { ok = false; bal = 0; break; }
         }
       }
+      if (scenario === 'growth') ok = bal >= goalVal;
       finals.push({ bal, ok });
-      if (scenario === 'retire' && ok) success++;
+      if (ok) success++;
     }
     finals.sort((a, b) => a.bal - b.bal);
     const pct = p => finals[Math.floor(p * finals.length)].bal;
-    const goal = scenario === 'growth' ? startVal + contribVal * yrs : 0;
     setResults({
       p10: pct(0.1),
       median: pct(0.5),
       p90: pct(0.9),
-      success: scenario === 'retire' ? success / n : undefined,
+      success: success / n,
       data: finals,
-      goal
+      goal: goalVal
     });
   };
 
@@ -1316,20 +1319,25 @@ function Simulations({ scenarioDefaults }) {
 
   const renderGoal = (ctx, data, goal) => {
     let g = 0, y = 0, r = 0;
-    data.forEach(({ bal }) => {
-      if (bal >= goal) g++;
-      else if (bal > 0) y++;
-      else r++;
+    data.forEach(({ bal, ok }) => {
+      if (goal === 0) {
+        if (ok) g++; else r++;
+      } else if (bal >= goal) {
+        g++;
+      } else if (bal >= 0.9 * goal) {
+        y++;
+      } else {
+        r++;
+      }
     });
-    const total = data.length || 1;
     return new Chart(ctx, {
       type: 'bar',
       data: {
         labels: [''],
         datasets: [
           { label: 'Met goal', data: [g], backgroundColor: '#16a34a' },
-          { label: 'Below goal', data: [y], backgroundColor: '#fbbf24' },
-          { label: 'Ran out', data: [r], backgroundColor: '#dc2626' }
+          { label: goal > 0 ? '90% of goal' : 'Below goal', data: [y], backgroundColor: '#fbbf24' },
+          { label: goal > 0 ? 'Below 90%' : 'Ran out', data: [r], backgroundColor: '#dc2626' }
         ]
       },
       options: {
@@ -1393,6 +1401,7 @@ function Simulations({ scenarioDefaults }) {
     scenario === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(scenarioDef.contrib) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Goal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: goal, onChange: setGoal, placeholder: money0(scenarioDef.goal) })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: 'Investor profile' }, /*#__PURE__*/React.createElement('select', { className: 'field', value: profile, onChange: e => setProfile(e.target.value) }, Object.entries(INVESTOR_PROFILES).map(([k, p]) => /*#__PURE__*/React.createElement('option', { key: k, value: k }, p.label)))), /*#__PURE__*/
     React.createElement(Field, { label: 'Expected return' }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement('div', { className: 'flex items-center gap-2' }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(profileDefaults.expectedReturn), readOnly: lockMean }), /*#__PURE__*/React.createElement('button', { type: 'button', className: 'text-xs', onClick: () => { if (lockMean) alert('Changing assumptions can yield unrealistic results.'); setLockMean(l => !l); } }, lockMean ? '🔒' : '🔓')), /*#__PURE__*/React.createElement(SourceNote, { url: 'https://www.lazyportfolioetf.com/' }))), /*#__PURE__*/
@@ -1418,9 +1427,9 @@ function Simulations({ scenarioDefaults }) {
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "10th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p10))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Median"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.median))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
-      scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
+      /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
-    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : 'Goal attainment across simulations: green met or exceeded the goal, yellow stayed above zero but below goal, red ran out.' ))),
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : (scenario === 'growth' ? 'Goal attainment across simulations: green met the goal, yellow reached at least 90% of it, red fell short.' : 'Goal attainment across simulations: green ended with funds, red ran out.') ))),
     React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]")),
     React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/
       React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."))
