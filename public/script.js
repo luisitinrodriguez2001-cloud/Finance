@@ -1253,10 +1253,8 @@ function Simulations({ scenarioDefaults }) {
   }, [scenario]);
 
   useEffect(() => {
-    if (mode === 'advanced') {
-      setMean(undefined);
-      setVol(undefined);
-    }
+    setMean(undefined);
+    setVol(undefined);
   }, [mode]);
 
   useEffect(() => {
@@ -1285,24 +1283,24 @@ function Simulations({ scenarioDefaults }) {
     React.createElement(Section, { title: "Monte Carlo Simulations" }, /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Simulation" }, /*#__PURE__*/React.createElement("select", { className: "field", value: scenario, onChange: e => setScenario(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "growth" }, "Investment Growth"), /*#__PURE__*/React.createElement("option", { value: "retire" }, "Retirement Outcome"))), /*#__PURE__*/
-    React.createElement(Field, { label: "Mode" }, /*#__PURE__*/React.createElement("select", { className: "field", value: mode, onChange: e => setMode(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "simple" }, "Simple"), /*#__PURE__*/React.createElement("option", { value: "advanced" }, "Advanced"))), /*#__PURE__*/
+    React.createElement(Field, { label: "Mode" }, /*#__PURE__*/React.createElement("div", { className: "inline-flex border rounded-lg overflow-hidden" }, /*#__PURE__*/React.createElement("button", { type: "button", className: (mode === 'simple' ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'px-3 py-1 text-sm', onClick: () => setMode('simple') }, "Simple"), /*#__PURE__*/React.createElement("button", { type: "button", className: (mode === 'advanced' ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'px-3 py-1 text-sm border-l', onClick: () => setMode('advanced') }, "Advanced"))), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" }))),
 
     scenario === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(scenarioDef.contrib) })), /*#__PURE__*/
+    mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
     React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
-    mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
     React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
 
     scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual withdrawal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: withdraw, onChange: setWithdraw, placeholder: money0(scenarioDef.withdraw) })), /*#__PURE__*/
+    mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
     React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
-    mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
     React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
 
