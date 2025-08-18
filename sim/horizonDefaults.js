@@ -29,3 +29,12 @@ export const HORIZON_DEFAULTS = {
   20: { expectedReturn: 7, volatility: 13 },
   30: { expectedReturn: 7, volatility: 12 }
 };
+
+export function horizonFromYears(y) {
+  if (y < 5) return 1;
+  if (y < 10) return 5;
+  if (y < 15) return 10;
+  if (y < 20) return 15;
+  if (y < 30) return 20;
+  return 30;
+}
