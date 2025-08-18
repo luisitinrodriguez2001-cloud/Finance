@@ -1137,6 +1137,7 @@ function SocialSecurity() {
 function Simulations({ horizonDefaults }) {
   const [horizon, setHorizon] = useState('growth');
   const defaults = horizonDefaults[horizon];
+  const trailing = defaults.trailing_cagr_ending_2024;
   const [mode, setMode] = useState('simple');
   const [start, setStart] = useState();
   const [contrib, setContrib] = useState();
@@ -1252,6 +1253,12 @@ function Simulations({ horizonDefaults }) {
     React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(defaults.vol) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
     React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(defaults.trials) })), /*#__PURE__*/
     React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(defaults.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
+
+    trailing && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+    React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
+    React.createElement("div", { className: "text-xs text-slate-500" }, `Last ${trailing.years} years`), /*#__PURE__*/
+    React.createElement("div", { className: "text-lg font-semibold" }, `${trailing.cagr}% annualized`)), /*#__PURE__*/
+    React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: `${trailing.years}-year CAGR ending 2024` })),
 
     React.createElement("div", { className: "mt-3" }, /*#__PURE__*/
     React.createElement("button", { className: "kbd", onClick: run }, "Run")),

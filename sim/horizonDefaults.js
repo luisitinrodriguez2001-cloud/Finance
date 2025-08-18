@@ -5,7 +5,11 @@ export const HORIZON_DEFAULTS = {
     mean: 7,
     vol: 15,
     trials: 1000,
-    infl: 2
+    infl: 2,
+    trailing_cagr_ending_2024: {
+      years: 10,
+      cagr: 12
+    }
   },
   retire: {
     start: 500000,
@@ -13,6 +17,10 @@ export const HORIZON_DEFAULTS = {
     mean: 5,
     vol: 12,
     trials: 1000,
-    infl: 2
+    infl: 2,
+    trailing_cagr_ending_2024: {
+      years: 10,
+      cagr: 12
+    }
   }
 };
