@@ -39,6 +39,15 @@ const HORIZON_DEFAULTS = {
   30: { expectedReturn: 7, volatility: 12 }
 };
 
+const horizonFromYears = y => {
+  if (y < 5) return 1;
+  if (y < 10) return 5;
+  if (y < 15) return 10;
+  if (y < 20) return 15;
+  if (y < 30) return 20;
+  return 30;
+};
+
 const { useState, useMemo, useEffect, useRef } = React;
 
 /* ----------------------- Error Boundary ----------------------- */
@@ -1172,17 +1181,17 @@ function SocialSecurity() {
 /* ----------------------- Monte Carlo simulations ----------------------- */
 function Simulations({ scenarioDefaults }) {
   const [scenario, setScenario] = useState('growth');
-  const [horizon, setHorizon] = useState(10);
   const scenarioDef = scenarioDefaults[scenario];
-  const horizonDef = HORIZON_DEFAULTS[horizon];
   const trailing = scenarioDef.trailing_cagr_ending_2024;
   const [mode, setMode] = useState('simple');
   const [start, setStart] = useState();
   const [contrib, setContrib] = useState();
   const [withdraw, setWithdraw] = useState();
   const [years, setYears] = useState();
-  const [mean, setMean] = useState(horizonDef.expectedReturn);
-  const [vol, setVol] = useState(horizonDef.volatility);
+  const horizon = useMemo(() => horizonFromYears(Number(years) || 30), [years]);
+  const horizonDef = HORIZON_DEFAULTS[horizon];
+  const [mean, setMean] = useState();
+  const [vol, setVol] = useState();
   const [trials, setTrials] = useState(scenarioDef.trials);
   const [infl, setInfl] = useState(scenarioDef.infl);
   const [results, setResults] = useState(null);
@@ -1244,13 +1253,6 @@ function Simulations({ scenarioDefaults }) {
   }, [scenario]);
 
   useEffect(() => {
-    if (mode === 'simple') {
-      setMean(horizonDef.expectedReturn);
-      setVol(horizonDef.volatility);
-    }
-  }, [horizon, mode]);
-
-  useEffect(() => {
     if (mode === 'advanced') {
       setMean(undefined);
       setVol(undefined);
@@ -1281,10 +1283,9 @@ function Simulations({ scenarioDefaults }) {
 
   return /*#__PURE__*/React.createElement(React.Fragment, null,
     React.createElement(Section, { title: "Monte Carlo Simulations" }, /*#__PURE__*/
-    React.createElement("div", { className: "grid sm:grid-cols-4 gap-3" }, /*#__PURE__*/
+    React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Simulation" }, /*#__PURE__*/React.createElement("select", { className: "field", value: scenario, onChange: e => setScenario(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "growth" }, "Investment Growth"), /*#__PURE__*/React.createElement("option", { value: "retire" }, "Retirement Outcome"))), /*#__PURE__*/
     React.createElement(Field, { label: "Mode" }, /*#__PURE__*/React.createElement("select", { className: "field", value: mode, onChange: e => setMode(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "simple" }, "Simple"), /*#__PURE__*/React.createElement("option", { value: "advanced" }, "Advanced"))), /*#__PURE__*/
-    React.createElement(Field, { label: "Horizon" }, /*#__PURE__*/React.createElement("select", { className: "field", value: horizon, onChange: e => setHorizon(Number(e.target.value)) }, [1,5,10,15,20,30].map(h => /*#__PURE__*/React.createElement("option", { key: h, value: h }, h, " yr")))), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" }))),
 
     scenario === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
