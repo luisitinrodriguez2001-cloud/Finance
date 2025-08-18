@@ -1,9 +1,7 @@
-export const HORIZON_DEFAULTS = {
+export const SCENARIO_DEFAULTS = {
   growth: {
     start: 10000,
     contrib: 6000,
-    mean: 7,
-    vol: 15,
     trials: 1000,
     infl: 2,
     trailing_cagr_ending_2024: {
@@ -14,8 +12,6 @@ export const HORIZON_DEFAULTS = {
   retire: {
     start: 500000,
     withdraw: 40000,
-    mean: 5,
-    vol: 12,
     trials: 1000,
     infl: 2,
     trailing_cagr_ending_2024: {
@@ -23,4 +19,13 @@ export const HORIZON_DEFAULTS = {
       cagr: 12
     }
   }
+};
+
+export const HORIZON_DEFAULTS = {
+  1: { expectedReturn: 5, volatility: 20 },
+  5: { expectedReturn: 6, volatility: 18 },
+  10: { expectedReturn: 7, volatility: 15 },
+  15: { expectedReturn: 7, volatility: 14 },
+  20: { expectedReturn: 7, volatility: 13 },
+  30: { expectedReturn: 7, volatility: 12 }
 };

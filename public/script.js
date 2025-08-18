@@ -2,7 +2,7 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
-import { HORIZON_DEFAULTS } from '../sim/horizonDefaults.js';
+import { SCENARIO_DEFAULTS, HORIZON_DEFAULTS } from '../sim/horizonDefaults.js';
 const { useState, useMemo, useEffect, useRef } = React;
 
 /* ----------------------- Error Boundary ----------------------- */
@@ -1134,19 +1134,21 @@ function SocialSecurity() {
 }
 
 /* ----------------------- Monte Carlo simulations ----------------------- */
-function Simulations({ horizonDefaults }) {
-  const [horizon, setHorizon] = useState('growth');
-  const defaults = horizonDefaults[horizon];
-  const trailing = defaults.trailing_cagr_ending_2024;
+function Simulations({ scenarioDefaults }) {
+  const [scenario, setScenario] = useState('growth');
+  const [horizon, setHorizon] = useState(10);
+  const scenarioDef = scenarioDefaults[scenario];
+  const horizonDef = HORIZON_DEFAULTS[horizon];
+  const trailing = scenarioDef.trailing_cagr_ending_2024;
   const [mode, setMode] = useState('simple');
   const [start, setStart] = useState();
   const [contrib, setContrib] = useState();
   const [withdraw, setWithdraw] = useState();
   const [years, setYears] = useState();
-  const [mean, setMean] = useState(defaults.mean);
-  const [vol, setVol] = useState(defaults.vol);
-  const [trials, setTrials] = useState(defaults.trials);
-  const [infl, setInfl] = useState(defaults.infl);
+  const [mean, setMean] = useState(horizonDef.expectedReturn);
+  const [vol, setVol] = useState(horizonDef.volatility);
+  const [trials, setTrials] = useState(scenarioDef.trials);
+  const [infl, setInfl] = useState(scenarioDef.infl);
   const [results, setResults] = useState(null);
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -1160,9 +1162,9 @@ function Simulations({ horizonDefaults }) {
 
   const run = () => {
     const yrs = Number(years) || 30;
-    const m = (Number(mean) || 0) / 100;
-    const s = (Number(vol) || 0) / 100;
-    const n = Number(trials) || 500;
+    const m = ((mean ?? '') === '' ? horizonDef.expectedReturn : Number(mean)) / 100;
+    const s = ((vol ?? '') === '' ? horizonDef.volatility : Number(vol)) / 100;
+    const n = Number(trials) || scenarioDef.trials;
     const inf = (Number(infl) || 0) / 100;
     const startVal = Number(start) || 0;
     const contribVal = Number(contrib) || 0;
@@ -1174,7 +1176,7 @@ function Simulations({ horizonDefaults }) {
       let ok = true;
       for (let y = 0; y < yrs; y++) {
         const r = randomNormal(m, s);
-        if (horizon === 'growth') {
+        if (scenario === 'growth') {
           const c = mode === 'advanced' ? contribVal * Math.pow(1 + inf, y) : contribVal;
           bal = (bal + c) * (1 + r);
         } else {
@@ -1184,7 +1186,7 @@ function Simulations({ horizonDefaults }) {
         }
       }
       finals.push(bal);
-      if (horizon === 'retire' && ok) success++;
+      if (scenario === 'retire' && ok) success++;
     }
     finals.sort((a, b) => a - b);
     const pct = p => finals[Math.floor(p * finals.length)];
@@ -1192,7 +1194,7 @@ function Simulations({ horizonDefaults }) {
       p10: pct(0.1),
       median: pct(0.5),
       p90: pct(0.9),
-      success: horizon === 'retire' ? success / n : undefined,
+      success: scenario === 'retire' ? success / n : undefined,
       data: finals
     });
   };
@@ -1201,11 +1203,23 @@ function Simulations({ horizonDefaults }) {
     setStart();
     setContrib();
     setWithdraw();
-    setMean(defaults.mean);
-    setVol(defaults.vol);
-    setTrials(defaults.trials);
-    setInfl(defaults.infl);
-  }, [horizon]);
+    setTrials(scenarioDef.trials);
+    setInfl(scenarioDef.infl);
+  }, [scenario]);
+
+  useEffect(() => {
+    if (mode === 'simple') {
+      setMean(horizonDef.expectedReturn);
+      setVol(horizonDef.volatility);
+    }
+  }, [horizon, mode]);
+
+  useEffect(() => {
+    if (mode === 'advanced') {
+      setMean(undefined);
+      setVol(undefined);
+    }
+  }, [mode]);
 
   useEffect(() => {
     if (!results || !window.Chart || !canvasRef.current) return;
@@ -1231,28 +1245,29 @@ function Simulations({ horizonDefaults }) {
 
   return /*#__PURE__*/React.createElement(React.Fragment, null,
     React.createElement(Section, { title: "Monte Carlo Simulations" }, /*#__PURE__*/
-    React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Simulation" }, /*#__PURE__*/React.createElement("select", { className: "field", value: horizon, onChange: e => setHorizon(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "growth" }, "Investment Growth"), /*#__PURE__*/React.createElement("option", { value: "retire" }, "Retirement Outcome"))), /*#__PURE__*/
+    React.createElement("div", { className: "grid sm:grid-cols-4 gap-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Simulation" }, /*#__PURE__*/React.createElement("select", { className: "field", value: scenario, onChange: e => setScenario(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "growth" }, "Investment Growth"), /*#__PURE__*/React.createElement("option", { value: "retire" }, "Retirement Outcome"))), /*#__PURE__*/
     React.createElement(Field, { label: "Mode" }, /*#__PURE__*/React.createElement("select", { className: "field", value: mode, onChange: e => setMode(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "simple" }, "Simple"), /*#__PURE__*/React.createElement("option", { value: "advanced" }, "Advanced"))), /*#__PURE__*/
+    React.createElement(Field, { label: "Horizon" }, /*#__PURE__*/React.createElement("select", { className: "field", value: horizon, onChange: e => setHorizon(Number(e.target.value)) }, [1,5,10,15,20,30].map(h => /*#__PURE__*/React.createElement("option", { key: h, value: h }, h, " yr")))), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" }))),
 
-    horizon === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(defaults.start) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(defaults.contrib) })),
+    scenario === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(scenarioDef.contrib) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement(Field, { label: "Mean return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(defaults.mean) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(defaults.vol) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
-    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(defaults.trials) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(defaults.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
+    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
 
-    horizon === 'retire' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(defaults.start) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Annual withdrawal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: withdraw, onChange: setWithdraw, placeholder: money0(defaults.withdraw) })),
+    scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Annual withdrawal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: withdraw, onChange: setWithdraw, placeholder: money0(scenarioDef.withdraw) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement(Field, { label: "Mean return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(defaults.mean) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(defaults.vol) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
-    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(defaults.trials) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(defaults.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
+    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
 
     trailing && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
@@ -1268,9 +1283,9 @@ function Simulations({ horizonDefaults }) {
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "10th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p10))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Median"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.median))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
-      horizon === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
+      scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
-    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, horizon === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.' ))),
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.' ))),
     React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-2", className: "underline" }, "[2]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-3", className: "underline" }, "[3]")),
     React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/
       React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."), /*#__PURE__*/
@@ -1711,7 +1726,7 @@ function App() {
     view === 'networth' && /*#__PURE__*/React.createElement(NetWorth, null),
     view === 'tax' && /*#__PURE__*/React.createElement(TaxCalc, null),
     view === 'ss' && /*#__PURE__*/React.createElement(SocialSecurity, null),
-    view === 'sim' && /*#__PURE__*/React.createElement(Simulations, { horizonDefaults: HORIZON_DEFAULTS }),
+    view === 'sim' && /*#__PURE__*/React.createElement(Simulations, { scenarioDefaults: SCENARIO_DEFAULTS }),
     view === 'data' && /*#__PURE__*/React.createElement(DataPanel, { onPlaceholders: setPlaceholders })), /*#__PURE__*/
 
 
