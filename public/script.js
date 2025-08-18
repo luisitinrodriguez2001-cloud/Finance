@@ -1195,6 +1195,7 @@ function Simulations({ scenarioDefaults }) {
   const [trials, setTrials] = useState(scenarioDef.trials);
   const [infl, setInfl] = useState(scenarioDef.infl);
   const [results, setResults] = useState(null);
+  const [chartMode, setChartMode] = useState('Histogram');
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
 
@@ -1235,12 +1236,65 @@ function Simulations({ scenarioDefaults }) {
     }
     finals.sort((a, b) => a - b);
     const pct = p => finals[Math.floor(p * finals.length)];
+    const goal = scenario === 'growth' ? startVal + contribVal * yrs : 0;
     setResults({
       p10: pct(0.1),
       median: pct(0.5),
       p90: pct(0.9),
       success: scenario === 'retire' ? success / n : undefined,
-      data: finals
+      data: finals,
+      goal
+    });
+  };
+
+  const renderHistogram = (ctx, data) => {
+    const bins = 20;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const step = (max - min) / bins || 1;
+    const counts = Array(bins).fill(0);
+    data.forEach(v => {
+      const idx = Math.min(bins - 1, Math.floor((v - min) / step));
+      counts[idx]++;
+    });
+    const labels = counts.map((_, i) => money0(min + step * i));
+    return new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: counts, backgroundColor: '#3b82f6' }] },
+      options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { beginAtZero: true } } } }
+    });
+  };
+
+  const renderGoal = (ctx, data, goal) => {
+    let g = 0, y = 0, r = 0;
+    data.forEach(v => {
+      if (v >= goal) g++;
+      else if (v > 0) y++;
+      else r++;
+    });
+    const total = data.length || 1;
+    return new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: [''],
+        datasets: [
+          { label: 'Met goal', data: [g], backgroundColor: '#16a34a' },
+          { label: 'Below goal', data: [y], backgroundColor: '#fbbf24' },
+          { label: 'Ran out', data: [r], backgroundColor: '#dc2626' }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        scales: { x: { stacked: true, display: false }, y: { stacked: true, display: false } },
+        plugins: {
+          legend: { position: 'bottom' },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.raw} (${(ctx.raw / total * 100).toFixed(1)}%)`
+            }
+          }
+        }
+      }
     });
   };
 
@@ -1260,27 +1314,16 @@ function Simulations({ scenarioDefaults }) {
   useEffect(() => {
     if (!results || !window.Chart || !canvasRef.current) return;
     if (chartRef.current) { try { chartRef.current.destroy(); } catch (_) {} }
-    const data = results.data;
-    const bins = 20;
-    const max = Math.max(...data);
-    const min = Math.min(...data);
-    const step = (max - min) / bins || 1;
-    const counts = Array(bins).fill(0);
-    data.forEach(v => {
-      const idx = Math.min(bins - 1, Math.floor((v - min) / step));
-      counts[idx]++;
-    });
-    const labels = counts.map((_, i) => money0(min + step * i));
     const ctx = canvasRef.current.getContext('2d');
-    chartRef.current = new Chart(ctx, {
-      type: 'bar',
-      data: { labels, datasets: [{ data: counts, backgroundColor: '#3b82f6' }] },
-      options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { beginAtZero: true } } } }
-    });
-  }, [results]);
+    if (chartMode === 'Histogram') {
+      chartRef.current = renderHistogram(ctx, results.data);
+    } else {
+      chartRef.current = renderGoal(ctx, results.data, results.goal);
+    }
+  }, [results, chartMode]);
 
   return /*#__PURE__*/React.createElement(React.Fragment, null,
-    React.createElement(Section, { title: "Monte Carlo Simulations" }, /*#__PURE__*/
+    React.createElement(Section, { title: "Monte Carlo Simulations", right: /*#__PURE__*/React.createElement("select", { className: "field text-sm", value: chartMode, onChange: e => setChartMode(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "Histogram" }, "Histogram (ending balances)"), /*#__PURE__*/React.createElement("option", { value: "Goal" }, "Goal Attainment")) }, /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Simulation" }, /*#__PURE__*/React.createElement("select", { className: "field", value: scenario, onChange: e => setScenario(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "growth" }, "Investment Growth"), /*#__PURE__*/React.createElement("option", { value: "retire" }, "Retirement Outcome"))), /*#__PURE__*/
     React.createElement(Field, { label: "Mode" }, /*#__PURE__*/React.createElement("div", { className: "inline-flex border rounded-lg overflow-hidden" }, /*#__PURE__*/React.createElement("button", { type: "button", className: (mode === 'simple' ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'px-3 py-1 text-sm', onClick: () => setMode('simple') }, "Simple"), /*#__PURE__*/React.createElement("button", { type: "button", className: (mode === 'advanced' ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'px-3 py-1 text-sm border-l', onClick: () => setMode('advanced') }, "Advanced"))), /*#__PURE__*/
@@ -1320,7 +1363,7 @@ function Simulations({ scenarioDefaults }) {
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
       scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
-    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.' ))),
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : 'Goal attainment across simulations: green met or exceeded the goal, yellow stayed above zero but below goal, red ran out.' ))),
     React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-2", className: "underline" }, "[2]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-3", className: "underline" }, "[3]")),
     React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/
       React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."), /*#__PURE__*/
