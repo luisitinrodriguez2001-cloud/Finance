@@ -1132,6 +1132,128 @@ function SocialSecurity() {
       React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Source: ", /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.ssa.gov/oact/quickcalc/early_late.html", target: "_blank", rel: "noreferrer" }, "Social Security Administration"))));
 }
 
+/* ----------------------- Monte Carlo simulations ----------------------- */
+function Simulations() {
+  const [simType, setSimType] = useState('growth');
+  const [mode, setMode] = useState('simple');
+  const [start, setStart] = useState();
+  const [contrib, setContrib] = useState();
+  const [withdraw, setWithdraw] = useState();
+  const [years, setYears] = useState();
+  const [mean, setMean] = useState(7);
+  const [vol, setVol] = useState(15);
+  const [trials, setTrials] = useState(1000);
+  const [infl, setInfl] = useState(2);
+  const [results, setResults] = useState(null);
+  const canvasRef = useRef(null);
+  const chartRef = useRef(null);
+
+  const randomNormal = (mu = 0, sigma = 1) => {
+    let u1 = Math.random();
+    let u2 = Math.random();
+    const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    return mu + sigma * z0;
+  };
+
+  const run = () => {
+    const yrs = Number(years) || 30;
+    const m = (Number(mean) || 0) / 100;
+    const s = (Number(vol) || 0) / 100;
+    const n = Number(trials) || 500;
+    const inf = (Number(infl) || 0) / 100;
+    const startVal = Number(start) || 0;
+    const contribVal = Number(contrib) || 0;
+    const withdrawVal = Number(withdraw) || 0;
+    const finals = [];
+    let success = 0;
+    for (let t = 0; t < n; t++) {
+      let bal = startVal;
+      let ok = true;
+      for (let y = 0; y < yrs; y++) {
+        const r = randomNormal(m, s);
+        if (simType === 'growth') {
+          const c = mode === 'advanced' ? contribVal * Math.pow(1 + inf, y) : contribVal;
+          bal = (bal + c) * (1 + r);
+        } else {
+          const w = mode === 'advanced' ? withdrawVal * Math.pow(1 + inf, y) : withdrawVal;
+          bal = bal * (1 + r) - w;
+          if (bal <= 0) { ok = false; bal = 0; break; }
+        }
+      }
+      finals.push(bal);
+      if (simType === 'retire' && ok) success++;
+    }
+    finals.sort((a, b) => a - b);
+    const pct = p => finals[Math.floor(p * finals.length)];
+    setResults({
+      p10: pct(0.1),
+      median: pct(0.5),
+      p90: pct(0.9),
+      success: simType === 'retire' ? success / n : undefined,
+      data: finals
+    });
+  };
+
+  useEffect(() => {
+    if (!results || !window.Chart || !canvasRef.current) return;
+    if (chartRef.current) { try { chartRef.current.destroy(); } catch (_) {} }
+    const data = results.data;
+    const bins = 20;
+    const max = Math.max(...data);
+    const min = Math.min(...data);
+    const step = (max - min) / bins || 1;
+    const counts = Array(bins).fill(0);
+    data.forEach(v => {
+      const idx = Math.min(bins - 1, Math.floor((v - min) / step));
+      counts[idx]++;
+    });
+    const labels = counts.map((_, i) => money0(min + step * i));
+    const ctx = canvasRef.current.getContext('2d');
+    chartRef.current = new Chart(ctx, {
+      type: 'bar',
+      data: { labels, datasets: [{ data: counts, backgroundColor: '#3b82f6' }] },
+      options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { beginAtZero: true } } } }
+    });
+  }, [results]);
+
+  return /*#__PURE__*/(
+    React.createElement(Section, { title: "Monte Carlo Simulations" }, /*#__PURE__*/
+    React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Simulation" }, /*#__PURE__*/React.createElement("select", { className: "field", value: simType, onChange: e => setSimType(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "growth" }, "Investment Growth"), /*#__PURE__*/React.createElement("option", { value: "retire" }, "Retirement Outcome"))), /*#__PURE__*/
+    React.createElement(Field, { label: "Mode" }, /*#__PURE__*/React.createElement("select", { className: "field", value: mode, onChange: e => setMode(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "simple" }, "Simple"), /*#__PURE__*/React.createElement("option", { value: "advanced" }, "Advanced"))), /*#__PURE__*/
+    React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" }))),
+
+    simType === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(10000) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(6000) })),
+    mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+    React.createElement(Field, { label: "Mean return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: "7" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: "15" })), /*#__PURE__*/
+    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: "1000" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: "2" })))),
+
+    simType === 'retire' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(500000) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Annual withdrawal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: withdraw, onChange: setWithdraw, placeholder: money0(40000) })),
+    mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+    React.createElement(Field, { label: "Mean return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: "5" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: "12" })), /*#__PURE__*/
+    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: "1000" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: "2" })))),
+
+    React.createElement("div", { className: "mt-3" }, /*#__PURE__*/
+    React.createElement("button", { className: "kbd", onClick: run }, "Run")),
+
+    results && /*#__PURE__*/React.createElement("div", { className: "mt-4" }, /*#__PURE__*/
+    React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "10th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p10))), /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Median"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.median))), /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
+    simType === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
+    React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, simType === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.' ))));
+}
+
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
 function DataPanel({ onPlaceholders }) {
   const [zip, setZip] = useLocalStorage('zip', '90210');
@@ -1209,6 +1331,7 @@ const TABS = [
 { id: 'networth', label: 'Net Worth' },
 { id: 'tax', label: 'Tax' },
 { id: 'ss', label: 'Social Security' },
+{ id: 'sim', label: 'Simulations' },
 { id: 'data', label: 'Data' }];
 
 const CARDS = [
@@ -1221,6 +1344,7 @@ const CARDS = [
 { id: 'networth', title: 'Net Worth', why: 'Track assets and liabilities with a color-coded balance sheet.' },
 { id: 'tax', title: 'Taxes (2025)', why: 'Approximate federal and state income taxes with current brackets.' },
 { id: 'ss', title: 'Social Security', why: 'Compare benefits at different retirement ages.' },
+{ id: 'sim', title: 'Simulations', why: 'Run Monte Carlo experiments for investment growth or retirement outcomes.' },
 { id: 'data', title: 'Data Sources', why: 'Load open ZIP-based data like home values to prefill placeholders.' }];
 
 const FUN_FACTS = {
@@ -1428,6 +1552,12 @@ const FUN_FACTS = {
     'Data breaches can expose sensitive personal information.',
     'Real-time APIs power live dashboards and apps.',
     'Public datasets can be combined to uncover new insights.'
+  ],
+  sim: [
+    'Monte Carlo methods model uncertainty by running many random trials.',
+    'The approach was popularized during the Manhattan Project.',
+    'In finance, Monte Carlo simulations help estimate investment risk and return.',
+    'More simulation runs generally yield more reliable percentile estimates.'
   ]
 };
 
@@ -1555,6 +1685,7 @@ function App() {
     view === 'networth' && /*#__PURE__*/React.createElement(NetWorth, null),
     view === 'tax' && /*#__PURE__*/React.createElement(TaxCalc, null),
     view === 'ss' && /*#__PURE__*/React.createElement(SocialSecurity, null),
+    view === 'sim' && /*#__PURE__*/React.createElement(Simulations, null),
     view === 'data' && /*#__PURE__*/React.createElement(DataPanel, { onPlaceholders: setPlaceholders })), /*#__PURE__*/
 
 
