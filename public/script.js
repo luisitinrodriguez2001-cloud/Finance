@@ -2,11 +2,43 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
-// Import simulation defaults relative to this script. The previous path used
-// "./sim", which resolved to "/public/sim" and produced 404 errors, leaving the
-// page blank. Using "../sim" points to the repository's "sim" directory in both
-// local and GitHub Pages environments.
-import { SCENARIO_DEFAULTS, HORIZON_DEFAULTS } from '../sim/horizonDefaults.js';
+// Simulation defaults used across calculators. Previously these values were
+// imported from "sim/horizonDefaults.js" using an ES module import, but the
+// additional module loader caused the app to render a blank page when the
+// script tag was treated as a module. Inlining the data removes that extra
+// dependency and allows the app to execute as a regular script.
+const SCENARIO_DEFAULTS = {
+  growth: {
+    start: 10000,
+    contrib: 6000,
+    trials: 1000,
+    infl: 2,
+    trailing_cagr_ending_2024: {
+      years: 10,
+      cagr: 12
+    }
+  },
+  retire: {
+    start: 500000,
+    withdraw: 40000,
+    trials: 1000,
+    infl: 2,
+    trailing_cagr_ending_2024: {
+      years: 10,
+      cagr: 12
+    }
+  }
+};
+
+const HORIZON_DEFAULTS = {
+  1: { expectedReturn: 5, volatility: 20 },
+  5: { expectedReturn: 6, volatility: 18 },
+  10: { expectedReturn: 7, volatility: 15 },
+  15: { expectedReturn: 7, volatility: 14 },
+  20: { expectedReturn: 7, volatility: 13 },
+  30: { expectedReturn: 7, volatility: 12 }
+};
+
 const { useState, useMemo, useEffect, useRef } = React;
 
 /* ----------------------- Error Boundary ----------------------- */
