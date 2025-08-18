@@ -2,11 +2,11 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
-// Use a relative path so GitHub Pages (which serves the app from a subdirectory)
-// can resolve the import correctly. Using "../sim" caused the browser to look
-// for the module at the domain root (e.g. example.com/sim) instead of within the
-// repository (e.g. example.com/Finance/sim), resulting in a blank page.
-import { SCENARIO_DEFAULTS, HORIZON_DEFAULTS } from './sim/horizonDefaults.js';
+// Import simulation defaults relative to this script. The previous path used
+// "./sim", which resolved to "/public/sim" and produced 404 errors, leaving the
+// page blank. Using "../sim" points to the repository's "sim" directory in both
+// local and GitHub Pages environments.
+import { SCENARIO_DEFAULTS, HORIZON_DEFAULTS } from '../sim/horizonDefaults.js';
 const { useState, useMemo, useEffect, useRef } = React;
 
 /* ----------------------- Error Boundary ----------------------- */
