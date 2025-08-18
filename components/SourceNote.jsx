@@ -1,4 +1,4 @@
-const SourceNote = ({ url, details, dispersionUrl }) => /*#__PURE__*/(
+const SourceNote = ({ url, details }) => /*#__PURE__*/(
   React.createElement(
     "p",
     { className: "text-[11px] text-slate-500 mt-1" },
@@ -6,25 +6,9 @@ const SourceNote = ({ url, details, dispersionUrl }) => /*#__PURE__*/(
     React.createElement(
       "a",
       { href: url, target: "_blank", rel: "noreferrer", className: "underline" },
-      "Slickcharts"
+      "LazyPortfolioETF"
     ),
-    details ? ` — ${details}` : '',
-    dispersionUrl &&
-      /*#__PURE__*/ React.createElement(
-        React.Fragment,
-        null,
-        " · ",
-        React.createElement(
-          "a",
-          {
-            href: dispersionUrl,
-            target: "_blank",
-            rel: "noreferrer",
-            className: "underline"
-          },
-          "LazyPortfolioETF"
-        )
-      )
+    details ? ` — ${details}` : ''
   )
 );
 

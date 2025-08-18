@@ -6,7 +6,7 @@ export const SCENARIO_DEFAULTS = {
     infl: 2,
     trailing_cagr_ending_2024: {
       years: 10,
-      cagr: 12
+      cagr: 8.58
     }
   },
   retire: {
@@ -16,18 +16,22 @@ export const SCENARIO_DEFAULTS = {
     infl: 2,
     trailing_cagr_ending_2024: {
       years: 10,
-      cagr: 12
+      cagr: 8.58
     }
   }
 };
 
+export const INVESTOR_PROFILE = '60/40';
+
+// Expected return and volatility approximations for a 60/40 portfolio
+// Source: https://www.lazyportfolioetf.com/
 export const HORIZON_DEFAULTS = {
-  1: { expectedReturn: 5, volatility: 20 },
-  5: { expectedReturn: 6, volatility: 18 },
-  10: { expectedReturn: 7, volatility: 15 },
-  15: { expectedReturn: 7, volatility: 14 },
-  20: { expectedReturn: 7, volatility: 13 },
-  30: { expectedReturn: 7, volatility: 12 }
+  1: { expectedReturn: 8.69, volatility: 11.56 },
+  5: { expectedReturn: 8.69, volatility: 11.56 },
+  10: { expectedReturn: 8.58, volatility: 10.5 },
+  15: { expectedReturn: 8.5, volatility: 10.3 },
+  20: { expectedReturn: 8.42, volatility: 10.09 },
+  30: { expectedReturn: 8.25, volatility: 9.68 }
 };
 
 export function horizonFromYears(y) {
