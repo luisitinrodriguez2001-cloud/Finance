@@ -31,6 +31,46 @@ const HORIZON_DEFAULTS = {
   30: { expectedReturn: 7, volatility: 12 }
 };
 
+const INVESTOR_PROFILES = {
+  superAggressive: {
+    label: 'Super Aggressive (All Tech)',
+    returns: { 5: 16.96, 10: 18.47, 30: 13.74 },
+    stddev: { 5: 20.33, 10: 18.72, 30: 23.99 }
+  },
+  aggressive: {
+    label: 'Aggressive (100/0)',
+    returns: { 5: 15.11, 10: 12.97, 30: 10.3 },
+    stddev: { 5: 16.38, 10: 15.89, 30: 15.65 }
+  },
+  modAggressive: {
+    label: 'Mod. Aggressive (80/20)',
+    returns: { 5: 11.91, 10: 10.79, 30: 9.35 },
+    stddev: { 5: 13.92, 10: 13.13, 30: 12.58 }
+  },
+  moderate: {
+    label: 'Moderate (60/40)',
+    returns: { 5: 8.69, 10: 8.58, 30: 8.25 },
+    stddev: { 5: 11.56, 10: 10.5, 30: 9.68 }
+  },
+  modConservative: {
+    label: 'Mod. Conservative (40/60)',
+    returns: { 5: 5.44, 10: 6.31, 30: 7.01 },
+    stddev: { 5: 9.39, 10: 8.09, 30: 7.02 }
+  },
+  conservative: {
+    label: 'Conservative (20/80)',
+    returns: { 5: 2.15, 10: 4.0, 30: 5.64 },
+    stddev: { 5: 7.54, 10: 6.12, 30: 4.93 }
+  },
+  superConservative: {
+    label: 'Super Conservative (0/100)',
+    returns: { 5: -1.16, 10: 1.63, 30: 4.14 },
+    stddev: { 5: 6.32, 10: 5.14, 30: 4.24 }
+  }
+};
+
+const DEFAULT_INVESTOR_PROFILE = 'moderate';
+
 const horizonFromYears = y => {
   if (y < 5) return 1;
   if (y < 10) return 5;
@@ -220,16 +260,15 @@ function CurrencyInput({ value, onChange, placeholder }) {
   return /*#__PURE__*/React.createElement("input", { className: "field", value: t ? money0(Number(clean(t))) : '', placeholder: placeholder,
     onChange: e => {const v = clean(e.target.value);setT(v);const n = Number(v);onChange(Number.isFinite(n) ? n : NaN);} });
 }
-function PercentInput({ value, onChange, placeholder }) {
+function PercentInput({ value, onChange, placeholder, readOnly }) {
   return /*#__PURE__*/(
     React.createElement("div", { className: "relative" }, /*#__PURE__*/
     React.createElement("input", { type: "number", step: "0.1", className: "field pr-10",
       value: Number.isFinite(value) ? value : '', placeholder: placeholder,
-      onChange: e => onChange(parseFloat(e.target.value)) }), /*#__PURE__*/
+      onChange: e => onChange(parseFloat(e.target.value)), readOnly: readOnly }), /*#__PURE__*/
     React.createElement("span", { className: "absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 text-sm" }, "%")));
-
-
 }
+
 /* Info (i) badge) */
 function InfoHint({ text }) {
   const [open, setOpen] = useState(false);
@@ -501,7 +540,7 @@ function CompoundCalc() {
     React.createElement("div", { className: "grid sm:grid-cols-4 gap-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting amount" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: principal, onChange: setPrincipal, placeholder: money0(10000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Monthly contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: monthly, onChange: setMonthly, placeholder: money0(500) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "7" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: "Moderate 60/40 10-year return ~8.58%" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "7" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" }))), /*#__PURE__*/
 
     React.createElement(CompoundResults, { principal: principal, monthly: monthly, ret: ret, years: years })));
@@ -544,7 +583,7 @@ function RetirementGoal() {
     React.createElement(Field, { label: "Goal (future value)" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: goal, onChange: setGoal, placeholder: money0(1000000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Current saved" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: current, onChange: setCurrent, placeholder: money0(50000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "7" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: "Moderate 60/40 10-year return ~8.58%" }))), /*#__PURE__*/
+    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "7" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/" }))), /*#__PURE__*/
 
     React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
     React.createElement("div", { className: "text-xs text-slate-500" }, "Required monthly contribution"), /*#__PURE__*/
@@ -1181,6 +1220,14 @@ function Simulations({ scenarioDefaults }) {
   const [years, setYears] = useState();
   const horizon = useMemo(() => horizonFromYears(Number(years) || 30), [years]);
   const horizonDef = HORIZON_DEFAULTS[horizon];
+  const [profile, setProfile] = useState(DEFAULT_INVESTOR_PROFILE);
+  const [lockMean, setLockMean] = useState(true);
+  const [lockVol, setLockVol] = useState(true);
+  const profileDefaults = useMemo(() => {
+    const p = INVESTOR_PROFILES[profile];
+    const h = horizon <= 5 ? 5 : horizon <= 10 ? 10 : 30;
+    return { expectedReturn: p.returns[h], volatility: p.stddev[h] };
+  }, [profile, horizon]);
   const [mean, setMean] = useState();
   const [vol, setVol] = useState();
   const [trials, setTrials] = useState(scenarioDef.trials);
@@ -1199,8 +1246,9 @@ function Simulations({ scenarioDefaults }) {
 
   const run = () => {
     const yrs = Number(years ?? 30);
-    const m = ((mean ?? '') === '' ? horizonDef.expectedReturn : Number(mean)) / 100;
-    const s = ((vol ?? '') === '' ? horizonDef.volatility : Number(vol)) / 100;
+    const defaults = mode === 'advanced' ? profileDefaults : horizonDef;
+    const m = ((mean ?? '') === '' ? defaults.expectedReturn : Number(mean)) / 100;
+    const s = ((vol ?? '') === '' ? defaults.volatility : Number(vol)) / 100;
     const n = (trials ?? '') === '' ? scenarioDef.trials : Number(trials);
     const inf = ((infl ?? '') === '' ? scenarioDef.infl : Number(infl)) / 100;
     const startVal = Number(start ?? scenarioDef.start);
@@ -1310,7 +1358,19 @@ function Simulations({ scenarioDefaults }) {
   useEffect(() => {
     setMean(undefined);
     setVol(undefined);
+    if (mode === 'advanced') {
+      setProfile(DEFAULT_INVESTOR_PROFILE);
+      setLockMean(true);
+      setLockVol(true);
+    }
   }, [mode]);
+
+  useEffect(() => {
+    if (mode === 'advanced') {
+      if (lockMean) setMean(profileDefaults.expectedReturn);
+      if (lockVol) setVol(profileDefaults.volatility);
+    }
+  }, [mode, profileDefaults, lockMean, lockVol]);
 
   useEffect(() => {
     if (!results || !window.Chart || !canvasRef.current) return;
@@ -1334,19 +1394,21 @@ function Simulations({ scenarioDefaults }) {
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(scenarioDef.contrib) })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: "Moderate 60/40 10-year return ~8.58%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: "Moderate 60/40 10-year stdev ~10.50%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) })))),
+    React.createElement(Field, { label: 'Investor profile' }, /*#__PURE__*/React.createElement('select', { className: 'field', value: profile, onChange: e => setProfile(e.target.value) }, Object.entries(INVESTOR_PROFILES).map(([k, p]) => /*#__PURE__*/React.createElement('option', { key: k, value: k }, p.label)))), /*#__PURE__*/
+    React.createElement(Field, { label: 'Expected return' }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement('div', { className: 'flex items-center gap-2' }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(profileDefaults.expectedReturn), readOnly: lockMean }), /*#__PURE__*/React.createElement('button', { type: 'button', className: 'text-xs', onClick: () => { if (lockMean) alert('Changing assumptions can yield unrealistic results.'); setLockMean(l => !l); } }, lockMean ? '🔒' : '🔓')), /*#__PURE__*/React.createElement(SourceNote, { url: 'https://www.lazyportfolioetf.com/' }))), /*#__PURE__*/
+    React.createElement(Field, { label: 'Volatility' }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement('div', { className: 'flex items-center gap-2' }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(profileDefaults.volatility), readOnly: lockVol }), /*#__PURE__*/React.createElement('button', { type: 'button', className: 'text-xs', onClick: () => { if (lockVol) alert('Changing assumptions can yield unrealistic results.'); setLockVol(l => !l); } }, lockVol ? '🔒' : '🔓')), /*#__PURE__*/React.createElement(SourceNote, { url: 'https://www.lazyportfolioetf.com/' }))), /*#__PURE__*/
+    React.createElement(Field, { label: '# Trials' }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: '1', placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
+    React.createElement(Field, { label: 'Inflation' }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) })))),
 
     scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual withdrawal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: withdraw, onChange: setWithdraw, placeholder: money0(scenarioDef.withdraw) })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: "Moderate 60/40 10-year return ~8.58%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: "Moderate 60/40 10-year stdev ~10.50%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) })))),
+    React.createElement(Field, { label: 'Investor profile' }, /*#__PURE__*/React.createElement('select', { className: 'field', value: profile, onChange: e => setProfile(e.target.value) }, Object.entries(INVESTOR_PROFILES).map(([k, p]) => /*#__PURE__*/React.createElement('option', { key: k, value: k }, p.label)))), /*#__PURE__*/
+    React.createElement(Field, { label: 'Expected return' }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement('div', { className: 'flex items-center gap-2' }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(profileDefaults.expectedReturn), readOnly: lockMean }), /*#__PURE__*/React.createElement('button', { type: 'button', className: 'text-xs', onClick: () => { if (lockMean) alert('Changing assumptions can yield unrealistic results.'); setLockMean(l => !l); } }, lockMean ? '🔒' : '🔓')), /*#__PURE__*/React.createElement(SourceNote, { url: 'https://www.lazyportfolioetf.com/' }))), /*#__PURE__*/
+    React.createElement(Field, { label: 'Volatility' }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement('div', { className: 'flex items-center gap-2' }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(profileDefaults.volatility), readOnly: lockVol }), /*#__PURE__*/React.createElement('button', { type: 'button', className: 'text-xs', onClick: () => { if (lockVol) alert('Changing assumptions can yield unrealistic results.'); setLockVol(l => !l); } }, lockVol ? '🔒' : '🔓')), /*#__PURE__*/React.createElement(SourceNote, { url: 'https://www.lazyportfolioetf.com/' }))), /*#__PURE__*/
+    React.createElement(Field, { label: '# Trials' }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: '1', placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
+    React.createElement(Field, { label: 'Inflation' }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }))),
 
     React.createElement("div", { className: "mt-3" }, /*#__PURE__*/
     React.createElement("button", { className: "kbd", onClick: run }, "Run")),
