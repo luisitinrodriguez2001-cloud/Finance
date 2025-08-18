@@ -1207,14 +1207,14 @@ function Simulations({ scenarioDefaults }) {
   };
 
   const run = () => {
-    const yrs = Number(years) || 30;
+    const yrs = Number(years ?? 30);
     const m = ((mean ?? '') === '' ? horizonDef.expectedReturn : Number(mean)) / 100;
     const s = ((vol ?? '') === '' ? horizonDef.volatility : Number(vol)) / 100;
-    const n = Number(trials) || scenarioDef.trials;
-    const inf = (Number(infl) || 0) / 100;
-    const startVal = Number(start) || 0;
-    const contribVal = Number(contrib) || 0;
-    const withdrawVal = Number(withdraw) || 0;
+    const n = (trials ?? '') === '' ? scenarioDef.trials : Number(trials);
+    const inf = ((infl ?? '') === '' ? scenarioDef.infl : Number(infl)) / 100;
+    const startVal = Number(start ?? scenarioDef.start);
+    const contribVal = Number(contrib ?? scenarioDef.contrib);
+    const withdrawVal = Number(withdraw ?? scenarioDef.withdraw);
     const finals = [];
     let success = 0;
     for (let t = 0; t < n; t++) {
