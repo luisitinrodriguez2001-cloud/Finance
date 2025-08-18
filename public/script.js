@@ -1231,11 +1231,11 @@ function Simulations({ scenarioDefaults }) {
           if (bal <= 0) { ok = false; bal = 0; break; }
         }
       }
-      finals.push(bal);
+      finals.push({ bal, ok });
       if (scenario === 'retire' && ok) success++;
     }
-    finals.sort((a, b) => a - b);
-    const pct = p => finals[Math.floor(p * finals.length)];
+    finals.sort((a, b) => a.bal - b.bal);
+    const pct = p => finals[Math.floor(p * finals.length)].bal;
     const goal = scenario === 'growth' ? startVal + contribVal * yrs : 0;
     setResults({
       p10: pct(0.1),
@@ -1249,27 +1249,37 @@ function Simulations({ scenarioDefaults }) {
 
   const renderHistogram = (ctx, data) => {
     const bins = 20;
-    const max = Math.max(...data);
-    const min = Math.min(...data);
+    const max = Math.max(...data.map(d => d.bal));
+    const min = Math.min(...data.map(d => d.bal));
     const step = (max - min) / bins || 1;
-    const counts = Array(bins).fill(0);
-    data.forEach(v => {
-      const idx = Math.min(bins - 1, Math.floor((v - min) / step));
-      counts[idx]++;
+    const successCounts = Array(bins).fill(0);
+    const failCounts = Array(bins).fill(0);
+    data.forEach(({ bal, ok }) => {
+      const idx = Math.min(bins - 1, Math.floor((bal - min) / step));
+      if (ok) successCounts[idx]++; else failCounts[idx]++;
     });
-    const labels = counts.map((_, i) => money0(min + step * i));
+    const labels = successCounts.map((_, i) => money0(min + step * i));
     return new Chart(ctx, {
       type: 'bar',
-      data: { labels, datasets: [{ data: counts, backgroundColor: '#3b82f6' }] },
-      options: { plugins: { legend: { display: false } }, scales: { x: { display: false }, y: { ticks: { beginAtZero: true } } } }
+      data: {
+        labels,
+        datasets: [
+          { label: 'Success', data: successCounts, backgroundColor: '#16a34a' },
+          { label: 'Failure', data: failCounts, backgroundColor: '#dc2626' }
+        ]
+      },
+      options: {
+        plugins: { legend: { position: 'bottom' } },
+        scales: { x: { stacked: true, display: false }, y: { stacked: true, ticks: { beginAtZero: true } } }
+      }
     });
   };
 
   const renderGoal = (ctx, data, goal) => {
     let g = 0, y = 0, r = 0;
-    data.forEach(v => {
-      if (v >= goal) g++;
-      else if (v > 0) y++;
+    data.forEach(({ bal }) => {
+      if (bal >= goal) g++;
+      else if (bal > 0) y++;
       else r++;
     });
     const total = data.length || 1;
