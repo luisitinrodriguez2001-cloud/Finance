@@ -15,6 +15,11 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+const investorProfile = process.env.INVESTOR_PROFILE || '60/40';
+app.get('/api/config', (req, res) => {
+  res.json({ investorProfile });
+});
+
 const port = process.env.PORT || 3000;
 app.listen(port, () => {
   console.log(`Server listening on http://localhost:${port}`);

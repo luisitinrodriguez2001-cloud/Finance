@@ -15,7 +15,7 @@ const SCENARIO_DEFAULTS = {
     infl: 2,
     trailing_cagr_ending_2024: {
       years: 10,
-      cagr: 12
+      cagr: 8.58
     }
   },
   retire: {
@@ -25,19 +25,24 @@ const SCENARIO_DEFAULTS = {
     infl: 2,
     trailing_cagr_ending_2024: {
       years: 10,
-      cagr: 12
+      cagr: 8.58
     }
   }
 };
 
 const HORIZON_DEFAULTS = {
-  1: { expectedReturn: 5, volatility: 20 },
-  5: { expectedReturn: 6, volatility: 18 },
-  10: { expectedReturn: 7, volatility: 15 },
-  15: { expectedReturn: 7, volatility: 14 },
-  20: { expectedReturn: 7, volatility: 13 },
-  30: { expectedReturn: 7, volatility: 12 }
+  1: { expectedReturn: 8.69, volatility: 11.56 },
+  5: { expectedReturn: 8.69, volatility: 11.56 },
+  10: { expectedReturn: 8.58, volatility: 10.5 },
+  15: { expectedReturn: 8.58, volatility: 10.5 },
+  20: { expectedReturn: 8.25, volatility: 9.68 },
+  30: { expectedReturn: 8.25, volatility: 9.68 }
 };
+
+let INVESTOR_PROFILE = '60/40';
+fetch('/api/config').then(r => r.json()).then(cfg => {
+  INVESTOR_PROFILE = cfg.investorProfile;
+});
 
 const horizonFromYears = y => {
   if (y < 5) return 1;
@@ -509,7 +514,7 @@ function CompoundCalc() {
     React.createElement("div", { className: "grid sm:grid-cols-4 gap-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting amount" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: principal, onChange: setPrincipal, placeholder: money0(10000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Monthly contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: monthly, onChange: setMonthly, placeholder: money0(500) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "7" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "8" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: "10-year return (60/40) ~8.6%" })), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" }))), /*#__PURE__*/
 
     React.createElement(CompoundResults, { principal: principal, monthly: monthly, ret: ret, years: years })));
@@ -520,7 +525,7 @@ function CompoundResults({ principal, monthly, ret, years }) {
   const fv = useMemo(() => futureValue({
     principal: principal !== null && principal !== void 0 ? principal : 10000,
     monthly: monthly !== null && monthly !== void 0 ? monthly : 500,
-    apr: ret !== null && ret !== void 0 ? ret : 7,
+    apr: ret !== null && ret !== void 0 ? ret : 8,
     years: years !== null && years !== void 0 ? years : 30 }),
   [principal, monthly, ret, years]);
   const contrib = (principal !== null && principal !== void 0 ? principal : 10000) + (monthly !== null && monthly !== void 0 ? monthly : 500) * months(years !== null && years !== void 0 ? years : 30);
@@ -543,7 +548,7 @@ function RetirementGoal() {
   const req = useMemo(() => requiredMonthly({
     goal: goal !== null && goal !== void 0 ? goal : 1000000,
     principal: current !== null && current !== void 0 ? current : 50000,
-    apr: ret !== null && ret !== void 0 ? ret : 7, years: years !== null && years !== void 0 ? years : 30 }),
+    apr: ret !== null && ret !== void 0 ? ret : 8, years: years !== null && years !== void 0 ? years : 30 }),
   [goal, current, ret, years]);
 
   return /*#__PURE__*/(
@@ -552,7 +557,7 @@ function RetirementGoal() {
     React.createElement(Field, { label: "Goal (future value)" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: goal, onChange: setGoal, placeholder: money0(1000000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Current saved" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: current, onChange: setCurrent, placeholder: money0(50000) })), /*#__PURE__*/
     React.createElement(Field, { label: "Years" }, /*#__PURE__*/React.createElement(NumberInput, { value: years, onChange: setYears, step: "1", placeholder: "30" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "7" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%", dispersionUrl: "https://www.lazyportfolioetf.com/" }))), /*#__PURE__*/
+    React.createElement(Field, { label: "Return (annual)" }, /*#__PURE__*/React.createElement(PercentInput, { value: ret, onChange: setRet, placeholder: "8" }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: "10-year return (60/40) ~8.6%" }))), /*#__PURE__*/
 
     React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
     React.createElement("div", { className: "text-xs text-slate-500" }, "Required monthly contribution"), /*#__PURE__*/
@@ -1291,26 +1296,26 @@ function Simulations({ scenarioDefaults }) {
     scenario === 'growth' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual contribution" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: contrib, onChange: setContrib, placeholder: money0(scenarioDef.contrib) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: "10-year return (60/40) 8.58%" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: "10-year volatility (60/40) 10.50%" })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
+    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.bls.gov/cpi/", name: "BLS CPI", details: "10-year CPI ~2%" })))),
 
     scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Starting balance" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: start, onChange: setStart, placeholder: money0(scenarioDef.start) })), /*#__PURE__*/
     React.createElement(Field, { label: "Annual withdrawal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: withdraw, onChange: setWithdraw, placeholder: money0(scenarioDef.withdraw) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CAGR ~12%" })), /*#__PURE__*/
-    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year volatility ~15%", dispersionUrl: "https://www.lazyportfolioetf.com/" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Expected return" }, /*#__PURE__*/React.createElement(PercentInput, { value: mean, onChange: setMean, placeholder: String(horizonDef.expectedReturn) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: "10-year return (60/40) 8.58%" })), /*#__PURE__*/
+    React.createElement(Field, { label: "Volatility" }, /*#__PURE__*/React.createElement(PercentInput, { value: vol, onChange: setVol, placeholder: String(horizonDef.volatility) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: "10-year volatility (60/40) 10.50%" })), /*#__PURE__*/
     mode === 'advanced' && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: "10-year CPI ~2%" })))),
+    React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) }), /*#__PURE__*/React.createElement(SourceNote, { url: "https://www.bls.gov/cpi/", name: "BLS CPI", details: "10-year CPI ~2%" })))),
 
     trailing && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
     React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
     React.createElement("div", { className: "text-xs text-slate-500" }, `Last ${trailing.years} years`), /*#__PURE__*/
     React.createElement("div", { className: "text-lg font-semibold" }, `${trailing.cagr}% annualized`)), /*#__PURE__*/
-    React.createElement(SourceNote, { url: "https://www.slickcharts.com/sp500", details: `${trailing.years}-year CAGR ending 2024` })),
+    React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", name: "LazyPortfolioETF", details: `${trailing.years}-year return ending 2024` })),
 
     React.createElement("div", { className: "mt-3" }, /*#__PURE__*/
     React.createElement("button", { className: "kbd", onClick: run }, "Run")),
