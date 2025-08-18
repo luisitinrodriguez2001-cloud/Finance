@@ -12,21 +12,13 @@ const SCENARIO_DEFAULTS = {
     start: 10000,
     contrib: 6000,
     trials: 1000,
-    infl: 2,
-    trailing_cagr_ending_2024: {
-      years: 10,
-      cagr: 12
-    }
+    infl: 2
   },
   retire: {
     start: 500000,
     withdraw: 40000,
     trials: 1000,
-    infl: 2,
-    trailing_cagr_ending_2024: {
-      years: 10,
-      cagr: 12
-    }
+    infl: 2
   }
 };
 
@@ -1182,7 +1174,6 @@ function SocialSecurity() {
 function Simulations({ scenarioDefaults }) {
   const [scenario, setScenario] = useState('growth');
   const scenarioDef = scenarioDefaults[scenario];
-  const trailing = scenarioDef.trailing_cagr_ending_2024;
   const [mode, setMode] = useState('simple');
   const [start, setStart] = useState();
   const [contrib, setContrib] = useState();
@@ -1357,12 +1348,6 @@ function Simulations({ scenarioDefaults }) {
     React.createElement(Field, { label: "# Trials" }, /*#__PURE__*/React.createElement(NumberInput, { value: trials, onChange: setTrials, step: "1", placeholder: String(scenarioDef.trials) })), /*#__PURE__*/
     React.createElement(Field, { label: "Inflation" }, /*#__PURE__*/React.createElement(PercentInput, { value: infl, onChange: setInfl, placeholder: String(scenarioDef.infl) })))),
 
-    trailing && /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-    React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, `Last ${trailing.years} years`), /*#__PURE__*/
-    React.createElement("div", { className: "text-lg font-semibold" }, `${trailing.cagr}% annualized`)), /*#__PURE__*/
-    React.createElement(SourceNote, { url: "https://www.lazyportfolioetf.com/", details: `${trailing.years}-year return ending 2024` })),
-
     React.createElement("div", { className: "mt-3" }, /*#__PURE__*/
     React.createElement("button", { className: "kbd", onClick: run }, "Run")),
 
@@ -1374,12 +1359,9 @@ function Simulations({ scenarioDefaults }) {
       scenario === 'retire' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
     React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : 'Goal attainment across simulations: green met or exceeded the goal, yellow stayed above zero but below goal, red ran out.' ))),
-    React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-2", className: "underline" }, "[2]"), ", ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-3", className: "underline" }, "[3]")),
+    React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]")),
     React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/
-      React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."), /*#__PURE__*/
-      React.createElement("li", { id: "sim-src-2" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.troweprice.com/financial-intermediary/us/en/insights/articles/2022/q2/monte-carlo-simulations-retirement-planning.html", target: "_blank", rel: "noreferrer" }, "T. Rowe Price \u2013 Monte Carlo simulations: what a good success rate looks like"), " (\u00a9 T. Rowe Price; online article)."), /*#__PURE__*/
-      React.createElement("li", { id: "sim-src-3" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://investor.vanguard.com/investor-resources-education/article/plan-for-retirement-using-monte-carlo-simulations", target: "_blank", rel: "noreferrer" }, "Vanguard \u2013 Plan for retirement using Monte Carlo simulations"), " (\u00a9 Vanguard; online article).")
-    )
+      React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."))
   );
 }
 
