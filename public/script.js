@@ -1235,6 +1235,7 @@ function Simulations({ scenarioDefaults }) {
   const [trials, setTrials] = useState(scenarioDef.trials);
   const [infl, setInfl] = useState(scenarioDef.infl);
   const [results, setResults] = useState(null);
+  const [bestProfile, setBestProfile] = useState(null);
   const [chartMode, setChartMode] = useState('Histogram');
   const canvasRef = useRef(null);
   const chartRef = useRef(null);
@@ -1259,6 +1260,7 @@ function Simulations({ scenarioDefaults }) {
     const withdrawVal = Number(withdraw ?? scenarioDef.withdraw);
     const finals = [];
     let success = 0;
+    let costBasis = startVal;
     for (let t = 0; t < n; t++) {
       let bal = startVal;
       let ok = true;
@@ -1266,6 +1268,7 @@ function Simulations({ scenarioDefaults }) {
         const r = randomNormal(m, s);
         if (scenario === 'growth') {
           const c = mode === 'advanced' ? contribVal * Math.pow(1 + inf, y) : contribVal;
+          if (t === 0) costBasis += c;
           bal = (bal + c) * (1 + r);
         } else {
           const w = mode === 'advanced' ? withdrawVal * Math.pow(1 + inf, y) : withdrawVal;
@@ -1285,8 +1288,41 @@ function Simulations({ scenarioDefaults }) {
       p90: pct(0.9),
       success: success / n,
       data: finals,
-      goal: goalVal
+      goal: goalVal,
+      costBasis
     });
+
+    // analyze best allocation across profiles
+    const horizonVal = horizonFromYears(yrs);
+    const h = horizonVal <= 5 ? 5 : horizonVal <= 10 ? 10 : 30;
+    let best = null;
+    Object.entries(INVESTOR_PROFILES).forEach(([k, p]) => {
+      const m2 = p.returns[h] / 100;
+      const s2 = p.stddev[h] / 100;
+      let succ = 0;
+      for (let t = 0; t < n; t++) {
+        let bal = startVal;
+        let ok = true;
+        for (let y = 0; y < yrs; y++) {
+          const r = randomNormal(m2, s2);
+          if (scenario === 'growth') {
+            const c = mode === 'advanced' ? contribVal * Math.pow(1 + inf, y) : contribVal;
+            bal = (bal + c) * (1 + r);
+          } else {
+            const w = mode === 'advanced' ? withdrawVal * Math.pow(1 + inf, y) : withdrawVal;
+            bal = bal * (1 + r) - w;
+            if (bal <= 0) { ok = false; bal = 0; break; }
+          }
+        }
+        if (scenario === 'growth') ok = bal >= goalVal;
+        if (ok) succ++;
+      }
+      const ratio = succ / n;
+      if (!best || ratio > best.success) {
+        best = { label: p.label, success: ratio };
+      }
+    });
+    setBestProfile(best);
   };
 
   const renderHistogram = (ctx, data) => {
@@ -1424,10 +1460,12 @@ function Simulations({ scenarioDefaults }) {
 
     results && /*#__PURE__*/React.createElement("div", { className: "mt-4" }, /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
+      scenario === 'growth' && /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Total cost basis (contributions)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.costBasis))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "10th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p10))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Median"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.median))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
-      /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))), /*#__PURE__*/
+      /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))),
+    bestProfile && /*#__PURE__*/React.createElement("div", { className: "mt-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Best historical allocation"), /*#__PURE__*/React.createElement("div", { className: "text-sm" }, bestProfile.label, " (", (bestProfile.success * 100).toFixed(1), "% success)"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "This is just the optimal model historically based on the models in the calculator and that past performance is NOT indicative of future performance.")), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
     React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : (scenario === 'growth' ? 'Goal attainment across simulations: green met the goal, yellow reached at least 90% of it, red fell short.' : 'Goal attainment across simulations: green ended with funds, red ran out.') ))),
     React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]")),
