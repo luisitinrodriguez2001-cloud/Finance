@@ -12,3 +12,7 @@ Install dependencies and run the server:
 npm install
 npm run dev
 ```
+
+## Theme
+
+The `theme/` directory contains an independent, copy-ready UI template. It preserves the profile header, social links, fun facts ribbon (without facts), and gradient background while excluding tabs and data.
