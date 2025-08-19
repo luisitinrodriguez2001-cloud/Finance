@@ -1366,6 +1366,17 @@ function Simulations({ scenarioDefaults }) {
         r++;
       }
     });
+    const total = g + y + r;
+    const segs = [];
+    if (g) segs.push(g);
+    if (y) segs.push(y);
+    if (r) segs.push(r);
+    const breakpoints = [];
+    let acc = 0;
+    for (let i = 0; i < segs.length - 1; i++) {
+      acc += segs[i];
+      breakpoints.push({ value: acc, label: `${(acc / total * 100).toFixed(0)}%` });
+    }
     return new Chart(ctx, {
       type: 'bar',
       data: {
@@ -1378,16 +1389,37 @@ function Simulations({ scenarioDefaults }) {
       },
       options: {
         indexAxis: 'y',
+        layout: { padding: { top: 20 } },
         scales: { x: { stacked: true, display: false }, y: { stacked: true, display: false } },
         plugins: {
           legend: { position: 'bottom' },
           tooltip: {
             callbacks: {
-              label: ctx => `${ctx.dataset.label}: ${ctx.raw} (${(ctx.raw / total * 100).toFixed(1)}%)`
+              label: ctx => `${ctx.dataset.label}: ${ctx.raw} (${total ? (ctx.raw / total * 100).toFixed(1) : '0.0'}%)`
             }
           }
         }
-      }
+      },
+      plugins: [{
+        id: 'goalBreakpoints',
+        afterDatasetsDraw(chart) {
+          const { ctx, chartArea, scales: { x } } = chart;
+          ctx.save();
+          ctx.strokeStyle = '#000';
+          ctx.fillStyle = '#000';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          breakpoints.forEach(bp => {
+            const xPos = x.getPixelForValue(bp.value);
+            ctx.beginPath();
+            ctx.moveTo(xPos, chartArea.top);
+            ctx.lineTo(xPos, chartArea.bottom);
+            ctx.stroke();
+            ctx.fillText(bp.label, xPos, chartArea.top - 4);
+          });
+          ctx.restore();
+        }
+      }]
     });
   };
 
@@ -1465,7 +1497,7 @@ function Simulations({ scenarioDefaults }) {
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Median"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.median))), /*#__PURE__*/
       React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "90th percentile"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(results.p90))), /*#__PURE__*/
       /*#__PURE__*/React.createElement("div", { className: "result col-span-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Success chance"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, (results.success * 100).toFixed(1), "%"))),
-    bestProfile && /*#__PURE__*/React.createElement("div", { className: "mt-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Best historical allocation"), /*#__PURE__*/React.createElement("div", { className: "text-sm" }, bestProfile.label, " (", (bestProfile.success * 100).toFixed(1), "% success)"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "This is just the optimal model historically based on the models in the calculator and that past performance is NOT indicative of future performance.")), /*#__PURE__*/
+    bestProfile && /*#__PURE__*/React.createElement("div", { className: "mt-3" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Best historical allocation"), /*#__PURE__*/React.createElement("div", { className: "text-sm" }, bestProfile.label, " (", (bestProfile.success * 100).toFixed(1), "% success)"), /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500 mt-1" }, "This represents the historically optimal model based on the calculator's assumptions; however, past performance does not guarantee future results.")), /*#__PURE__*/
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
     React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : (scenario === 'growth' ? 'Goal attainment across simulations: green met the goal, yellow reached at least 90% of it, red fell short.' : 'Goal attainment across simulations: green ended with funds, red ran out.') ))),
     React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]")),
