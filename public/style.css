@@ -3,7 +3,7 @@
   --bg: #f8fafc;
   --text: #0f172a;
   --border: #e2e8f0;
-  --card-bg: rgba(255,255,255,.8);
+  --card-bg: #fff;
   --input-bg: #fff;
   --input-text: #0f172a;
   --accent: #0f172a;
@@ -21,7 +21,7 @@ body { background: var(--bg); color: var(--text); }
 [data-theme='dark'] {
   --bg: #0f172a;
   --text: #f8fafc;
-  --card-bg: rgba(30,41,59,.8);
+  --card-bg: #1e293b;
   --border: #334155;
   --input-bg: #1e293b;
   --input-text: #f8fafc;
