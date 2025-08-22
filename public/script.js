@@ -210,6 +210,12 @@ const PROXY = '';
 function maybeProxy(url) {
   return PROXY ? PROXY + url : url;
 }
+
+// Simple cache of in-flight and completed fetches by URL
+const FETCH_CACHE = {};
+function clearFetchCache() {
+  for (const k in FETCH_CACHE) delete FETCH_CACHE[k];
+}
 function withTimeout(promise, ms) {
   return new Promise((resolve, reject) => {
     const id = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
@@ -217,25 +223,39 @@ function withTimeout(promise, ms) {
   });
 }
 async function retryingFetch(url, opts = {}, retries = 3, tag = 'fetch') {
-  for (let i = 1; i <= retries; i++) {
-    try {
-      const resp = await withTimeout(fetch(url, opts), 12000);
-      if (!resp.ok) {
-        const err = new Error(`HTTP ${resp.status}`);
-        err.url = url;
-        throw err;
+  const method = (opts.method || 'GET').toUpperCase();
+  const key = url;
+  if (method === 'GET' && FETCH_CACHE[key]) return FETCH_CACHE[key];
+
+  const attempt = (async () => {
+    for (let i = 1; i <= retries; i++) {
+      try {
+        const resp = await withTimeout(fetch(url, opts), 12000);
+        if (!resp.ok) {
+          const err = new Error(`HTTP ${resp.status}`);
+          err.url = url;
+          throw err;
+        }
+        return resp;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : err;
+        console.warn(`[${tag}] attempt ${i} failed: ${msg}`);
+        if (i === retries) {
+          throw Object.assign(err instanceof Error ? err : new Error(String(err)), { url });
+        }
+        const backoff = 500 * Math.pow(2, i - 1) + Math.random() * 1000;
+        await new Promise(r => setTimeout(r, backoff));
       }
-      return resp;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : err;
-      console.warn(`[${tag}] attempt ${i} failed: ${msg}`);
-      if (i === retries) {
-        throw Object.assign(err instanceof Error ? err : new Error(String(err)), { url });
-      }
-      const backoff = 500 * Math.pow(2, i - 1) + Math.random() * 1000;
-      await new Promise(r => setTimeout(r, backoff));
     }
+  })();
+
+  if (method === 'GET') {
+    const p = attempt.catch(err => { delete FETCH_CACHE[key]; throw err; });
+    FETCH_CACHE[key] = p;
+    return p;
   }
+
+  return attempt;
 }
 
 function useLocalStorage(key, initial) {
@@ -1815,6 +1835,7 @@ function DataPanel({ onPlaceholders }) {
   };
 
   const onMonthYearChange = async (m, y) => {
+    clearFetchCache();
     const mm = String(m).padStart(2, '0');
     const yy = String(y);
     try {
