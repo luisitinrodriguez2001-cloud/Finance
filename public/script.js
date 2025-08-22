@@ -1628,9 +1628,34 @@ function Simulations({ scenarioDefaults }) {
     React.createElement("canvas", { ref: canvasRef, height: "200", className: "mt-4" }), /*#__PURE__*/
     React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, chartMode === 'Histogram' ? (scenario === 'growth' ? 'Histogram of final balances across simulations. Percentiles show optimistic and conservative scenarios.' : 'Histogram of ending balances. Success chance is the percentage of trials with money left.') : (scenario === 'growth' ? 'Goal attainment across simulations: green met the goal, yellow reached at least 90% of it, red fell short.' : 'Goal attainment across simulations: green ended with funds, red ran out.') ))),
     React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "Sources: ", /*#__PURE__*/React.createElement("a", { href: "#sim-src-1", className: "underline" }, "[1]")),
-    React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/
-      React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."))
+    React.createElement("ol", { className: "text-xs text-slate-500 list-decimal list-inside mt-1" }, /*#__PURE__*/React.createElement("li", { id: "sim-src-1" }, /*#__PURE__*/React.createElement("a", { className: "underline", href: "https://www.investopedia.com/terms/m/montecarlosimulation.asp", target: "_blank", rel: "noreferrer" }, "Investopedia \u2013 Monte Carlo Simulation"), " (free to read; \u00a9 Dotdash Meredith)."))
   );
+}
+
+const ECON_METRICS = [
+  { key: 'cpi', label: 'CPI-U (headline, SA)', notes: 'BLS CUSR0000SA0', hint: 'Consumer Price Index for All Urban Consumers, seasonally adjusted.' },
+  { key: 'unemployment', label: 'Unemployment rate (U-3)', notes: 'BLS LNS14000000', hint: 'Civilian unemployment rate, seasonally adjusted (U-3).' },
+  { key: 'treasury10Y', label: '10-Year Treasury yield (avg)', notes: 'Treasury Yield Curve XML (bc_10year)', hint: 'Average 10-year Treasury yield from the daily curve.' },
+  { key: 'fedFunds', label: 'Effective Fed Funds (avg)', notes: 'FRED CSV (FEDFUNDS)', hint: 'Monthly average of the effective federal funds rate.' }
+];
+
+function renderEconTable(data) {
+  const formatVal = v => Number.isFinite(v) ? v.toFixed(2) : '\u2014';
+  return /*#__PURE__*/React.createElement("table", { className: "mt-3 w-full text-xs" }, /*#__PURE__*/React.createElement("tbody", null, ECON_METRICS.map(r => /*#__PURE__*/React.createElement("tr", { key: r.key }, /*#__PURE__*/React.createElement("td", { className: "py-1 pr-4" }, /*#__PURE__*/React.createElement("div", { className: "flex items-center gap-1" }, /*#__PURE__*/React.createElement("span", null, r.label), /*#__PURE__*/React.createElement(InfoHint, { text: r.hint })), /*#__PURE__*/React.createElement("div", { className: "text-[11px] text-slate-500" }, r.notes)), /*#__PURE__*/React.createElement("td", { className: "py-1 text-right" }, formatVal(data[r.key]))))));
+}
+
+function downloadCSV(name, rows) {
+  const header = ['metric', 'date', 'value', 'notes'];
+  const csv = [header.join(','), ...rows.map(r => [r.metric, r.date, r.value ?? '', r.notes ?? ''].join(','))].join('\n') + '\n';
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name.endsWith('.csv') ? name : `${name}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
@@ -1699,18 +1724,14 @@ function DataPanel({ onPlaceholders }) {
 
   const downloadEconCSV = () => {
     if (!econData) return;
-    const header = ['date', 'cpi', 'unemployment', 'treasury10y', 'fedfunds'];
-    const row = [econData.date, econData.cpi, econData.unemployment, econData.treasury10Y, econData.fedFunds];
-    const csv = `${header.join(',')}\n${row.join(',')}\n`;
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `econ-${econData.date.replace(/-/g, '').slice(0,6)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const rows = ECON_METRICS.map(m => ({
+      metric: m.label,
+      date: econData.date,
+      value: econData[m.key],
+      notes: m.notes
+    }));
+    const name = `econ-${econData.date.replace(/-/g, '').slice(0, 6)}`;
+    downloadCSV(name, rows);
   };
 
   const populateYearOptions = async () => {
@@ -1834,11 +1855,12 @@ function DataPanel({ onPlaceholders }) {
                 econYearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))), /*#__PURE__*/
             React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
                 React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"), /*#__PURE__*/
-                React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}` , onClick: downloadEconCSV, disabled: !econData }, "Download CSV"))
-          econWarning && /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning), /*#__PURE__*/
+                React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}` , onClick: downloadEconCSV, disabled: !econData }, "Download CSV")),
+          econWarning && /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
+          econData && /*#__PURE__*/React.createElement(React.Fragment, null, renderEconTable(econData), /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")),
           React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
             React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-            React.createElement("div", { className: "text-sm" }, status)))), /*#__PURE__*/
+            React.createElement("div", { className: "text-sm" }, status))))
 
       React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
   );
