@@ -231,6 +231,113 @@ async function fetchMedianIncomeByZip(zip) {
   return Number.isFinite(n) ? { name, value: n } : null;
 }
 
+/* ----------------------- Economic data helpers ----------------------- */
+const PROXY = '';
+// Cloudflare Worker proxy example:
+// export default {async fetch(r){const u=new URL(r.url).searchParams.get('url');return fetch(u,{headers:{origin:''}})}};
+
+const ECON_CACHE = {};
+
+function maybeProxy(url) {
+  return PROXY ? PROXY + encodeURIComponent(url) : url;
+}
+
+function withTimeout(ms, fn) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), ms);
+  return fn(controller.signal).finally(() => clearTimeout(id));
+}
+
+async function retryingFetch(url, opts = {}) {
+  const u = maybeProxy(url);
+  for (let a = 1; a <= 3; a++) {
+    try {
+      const res = await withTimeout(12000, signal => fetch(u, { ...opts, signal }));
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw Object.assign(new Error(`HTTP ${res.status}: ${body.slice(0,500)}`), { url: u });
+      }
+      return res;
+    } catch (e) {
+      if (a === 3) throw e;
+      console.warn(`[data/econ] attempt ${a} failed: ${e.message}`);
+      await new Promise(r => setTimeout(r, 400 * a + Math.random() * 300));
+    }
+  }
+}
+
+async function getBLS(seriesId) {
+  const url = `https://api.bls.gov/publicAPI/v2/timeseries/data/${seriesId}`;
+  if (ECON_CACHE[url]) return ECON_CACHE[url];
+  const res = await retryingFetch(url);
+  const json = await res.json();
+  const rows = json?.Results?.series?.[0]?.data;
+  if (!Array.isArray(rows)) throw Object.assign(new Error('BLS schema'), { url });
+  const data = rows.slice().reverse().map(d => ({
+    date: `${d.year}-${d.period.substring(1)}-01`,
+    year: parseInt(d.year, 10),
+    month: parseInt(d.period.substring(1), 10),
+    value: parseFloat(d.value)
+  }));
+  ECON_CACHE[url] = data;
+  return data;
+}
+
+async function getTreasury10Y(yyyymm) {
+  const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value_month=${yyyymm}`;
+  if (ECON_CACHE[url]) return ECON_CACHE[url];
+  const res = await retryingFetch(url);
+  const text = await res.text();
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  const entries = Array.from(doc.getElementsByTagName('entry'));
+  if (!entries.length) throw Object.assign(new Error('Treasury schema'), { url });
+  const days = entries.map(e => {
+    const d = e.getElementsByTagName('d:record_date')[0] || e.getElementsByTagName('record_date')[0];
+    const v = e.getElementsByTagName('d:bc_10year')[0] || e.getElementsByTagName('bc_10year')[0];
+    return { date: d?.textContent, value: parseFloat(v?.textContent) };
+  }).filter(r => r.date && Number.isFinite(r.value));
+  const avg = days.reduce((s, r) => s + r.value, 0) / (days.length || 1);
+  const data = { date: `${yyyymm.slice(0,4)}-${yyyymm.slice(4)}-01`, value: days.length ? avg : NaN, days: days.length };
+  ECON_CACHE[url] = data;
+  return data;
+}
+
+async function getFREDFedFundsCSV() {
+  const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS';
+  if (ECON_CACHE[url]) return ECON_CACHE[url];
+  const res = await retryingFetch(url);
+  const text = await res.text();
+  const lines = text.trim().split(/\r?\n/);
+  if (!lines[0].startsWith('DATE')) throw Object.assign(new Error('FRED CSV header'), { url });
+  const rows = lines.slice(1).map(l => {
+    const [d, v] = l.split(',');
+    const n = v === '.' ? NaN : parseFloat(v);
+    return { date: d, value: n };
+  }).filter(r => Number.isFinite(r.value));
+  ECON_CACHE[url] = rows;
+  return rows;
+}
+
+function computeMonthlyAverage(rows, y, m) {
+  const ym = `${y}-${String(m).padStart(2,'0')}`;
+  const set = rows.filter(r => r.date.startsWith(ym));
+  if (!set.length) return { value: NaN, count: 0 };
+  const avg = set.reduce((s, r) => s + r.value, 0) / set.length;
+  return { value: avg, count: set.length };
+}
+
+function downloadCSV(name, rows) {
+  const csv = ['metric,date,value,notes', ...rows.map(r => `${r.metric},${r.date},${r.value},${r.notes}`)].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {URL.revokeObjectURL(url);a.remove();}, 0);
+}
+
 /* ----------------------- Micro UI ----------------------- */
 const Section = ({ title, right, children }) => /*#__PURE__*/
 React.createElement("section", { className: "card p-4 mb-4" }, /*#__PURE__*/
@@ -1507,7 +1614,7 @@ function Simulations({ scenarioDefaults }) {
 }
 
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
-function DataPanel({ onPlaceholders }) {
+function OldDataPanel({ onPlaceholders }) {
   const [zip, setZip] = useLocalStorage('zip', '90210');
   const [area, setArea] = useState(null);
   const [home, setHome] = useState(null);
@@ -1569,7 +1676,7 @@ function DataPanel({ onPlaceholders }) {
 
       React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
   );
-}
+
 
 /* --------------------------- Landing + Tabs --------------------------- */
 const TABS = [
@@ -1951,3 +2058,175 @@ function App() {
 
 /* Mount */
 ReactDOM.createRoot(document.getElementById('root')).render( /*#__PURE__*/React.createElement(App, null));
+function DataPanel({ onPlaceholders }) {
+  const [source, setSource] = useState('zip');
+  const [zip, setZip] = useLocalStorage('zip', '90210');
+  const [area, setArea] = useState(null);
+  const [home, setHome] = useState(null);
+  const [income, setIncome] = useState(null);
+  const [status, setStatus] = useState('');
+
+  const [econMonth, setEconMonth] = useState(null);
+  const [econYear, setEconYear] = useState(null);
+  const [years, setYears] = useState([]);
+  const monthsByYear = useRef({});
+  const [econData, setEconData] = useState(null);
+  const [econError, setEconError] = useState('');
+  const [econWarn, setEconWarn] = useState('');
+  const [canFetch, setCanFetch] = useState(true);
+  const initRef = useRef(false);
+
+  const refresh = async () => {
+    setStatus('Fetching…');
+    try {
+      const [loc, hv, inc] = await Promise.all([
+        fetchZip(zip).catch(_ => null),
+        fetchMedianHomeValueByZip(zip).catch(_ => null),
+        fetchMedianIncomeByZip(zip).catch(_ => null)
+      ]);
+      setArea(loc);
+      setHome(hv);
+      setIncome(inc);
+      const mortgageAPRPH = 6.5;
+      const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
+      onPlaceholders?.({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, income: inc, rates: {} });
+      setStatus('Updated ✅');
+    } catch (e) {
+      console.warn('Data load failed', e);
+      setStatus('Fetch failed. Check inputs or try again.');
+    }
+  };
+
+  const populateYearOptions = async () => {
+    try {
+      const [cpi, un] = await Promise.all([getBLS('CUSR0000SA0'), getBLS('LNS14000000')]);
+      const map = {};
+      cpi.forEach(r => {(map[r.year] ??= { c: new Set(), u: new Set() }).c.add(r.month);});
+      un.forEach(r => {(map[r.year] ??= { c: new Set(), u: new Set() }).u.add(r.month);});
+      const yrs = Object.keys(map).filter(y => {
+        const m = [...map[y].c].filter(mo => map[y].u.has(mo));
+        if (m.length) monthsByYear.current[y] = m.sort((a,b)=>a-b);
+        return m.length;
+      }).map(Number).sort((a,b)=>a-b);
+      setYears(yrs);
+      const y = Math.max(...yrs);
+      setEconYear(y);
+      const m = monthsByYear.current[y];
+      setEconMonth(Math.max(...m));
+    } catch (e) {
+      setEconError(`${e.message} — ${e.url || ''}`);
+    }
+  };
+
+  const fetchEcon = async () => {
+    if (!econYear || !econMonth) return;
+    setEconError('');
+    setEconWarn('');
+    setEconData(null);
+    try {
+      const ym = `${econYear}${String(econMonth).padStart(2,'0')}`;
+      const [cpiRows, unRows, fredRows, tre] = await Promise.all([
+        getBLS('CUSR0000SA0'),
+        getBLS('LNS14000000'),
+        getFREDFedFundsCSV(),
+        getTreasury10Y(ym)
+      ]);
+      if (!tre.days) { setEconWarn('No Treasury data for that month'); setCanFetch(false); } else { setCanFetch(true); }
+      const cpi = cpiRows.find(r => r.year === econYear && r.month === econMonth);
+      const un = unRows.find(r => r.year === econYear && r.month === econMonth);
+      const fed = computeMonthlyAverage(fredRows, econYear, econMonth);
+      const date = `${econYear}-${String(econMonth).padStart(2,'0')}-01`;
+      setEconData({
+        date,
+        cpi: cpi?.value,
+        un: un?.value,
+        y10: tre.days ? tre.value : NaN,
+        y10Days: tre.days,
+        fed: fed.count ? fed.value : NaN,
+        fedCount: fed.count
+      });
+    } catch (e) {
+      setEconError(`${e.message} — ${e.url || ''}. If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL.`);
+    }
+  };
+
+  useEffect(() => { refresh(); }, []);
+  useEffect(() => { if (source === 'econ' && !initRef.current) { initRef.current = true; populateYearOptions(); } }, [source]);
+  useEffect(() => { if (source === 'econ') fetchEcon(); }, [econMonth, econYear, source]);
+
+  const onSourceChange = e => { setSource(e.target.value); };
+  const onMonthYearChange = (type, val) => {
+    if (type === 'year') {
+      const y = parseInt(val,10);
+      setEconYear(y);
+      const m = monthsByYear.current[y];
+      if (m && m.length) setEconMonth(Math.max(...m));
+    } else {
+      setEconMonth(parseInt(val,10));
+    }
+  };
+
+  const renderEconTable = data => {
+    const fmt = n => Number.isFinite(n) ? n.toFixed(2) : 'N/A';
+    return React.createElement("div", { className: "overflow-x-auto mt-3" },
+      React.createElement("table", { className: "text-sm" },
+        React.createElement("tbody", null,
+          React.createElement("tr", null,
+            React.createElement("td", { className: "pr-4 align-top" }, "CPI-U (headline, SA) — BLS CUSR0000SA0", React.createElement(InfoHint, { text: "CPI-U SA = headline consumer price index (seasonally adjusted)" })),
+            React.createElement("td", null, fmt(data.cpi))),
+          React.createElement("tr", null,
+            React.createElement("td", { className: "pr-4 align-top" }, "Unemployment rate (U-3) — BLS LNS14000000", React.createElement(InfoHint, { text: "Unemployment rate (U-3) = % labor force" })),
+            React.createElement("td", null, fmt(data.un))),
+          React.createElement("tr", null,
+            React.createElement("td", { className: "pr-4 align-top" }, "10-Year Treasury yield (avg) — Treasury Yield Curve XML (bc_10year)", React.createElement(InfoHint, { text: "10Y yield = constant maturity par yield" })),
+            React.createElement("td", null, fmt(data.y10))),
+          React.createElement("tr", null,
+            React.createElement("td", { className: "pr-4 align-top" }, "Effective Fed Funds (avg) — FRED CSV (FEDFUNDS)", React.createElement(InfoHint, { text: "Effective Fed Funds = daily rate averaged across the month." })),
+            React.createElement("td", null, fmt(data.fed)))
+        )));
+  };
+
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  return React.createElement(Section, { title: "Data", right: React.createElement("select", { id: "dataSource", className: "field", value: source, onChange: onSourceChange }, React.createElement("option", { value: "zip" }, "Zip code data"), React.createElement("option", { value: "econ" }, "Economic data")) },
+    source === 'zip' ? React.createElement(React.Fragment, null,
+      React.createElement("div", { className: "grid md:grid-cols-2 gap-3" },
+        React.createElement(Field, { label: "ZIP (for home value)" }, React.createElement(React.Fragment, null,
+          React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" }),
+          React.createElement("a", { className: "text-xs underline block mt-1", href: "https://tools.usps.com/zip-code-lookup.htm", target: "_blank", rel: "noreferrer" }, "Find ZIP by city"))),
+        React.createElement("div", { className: "flex items-end gap-2" },
+          React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))),
+      React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" },
+        React.createElement("div", { className: "result" },
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"),
+          React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '—'),
+          React.createElement("div", { className: "text-xs text-slate-500" }, (home?.name) || '')),
+        React.createElement("div", { className: "result" },
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Median household income (ACS, ZIP)"),
+          React.createElement("div", { className: "text-lg font-semibold" }, income && income.value ? money0(income.value) : '—'),
+          React.createElement("div", { className: "text-xs text-slate-500" }, (income?.name) || '')),
+        React.createElement("div", { className: "result" },
+          React.createElement("div", { className: "text-xs text-slate-500" }, "Location"),
+          React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '—'))),
+      React.createElement("div", { className: "result mt-3" },
+        React.createElement("div", { className: "text-xs text-slate-500" }, "Status"),
+        React.createElement("div", { className: "text-sm" }, status)),
+      React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
+    : React.createElement(React.Fragment, null,
+      React.createElement("div", { className: "grid md:grid-cols-3 gap-3" },
+        React.createElement(Field, { label: "Month" }, React.createElement("select", { id: "econMonth", className: "field", value: econMonth ?? '', onChange: e => onMonthYearChange('month', e.target.value) }, monthNames.map((m, i) => React.createElement("option", { key: i + 1, value: i + 1, disabled: !(monthsByYear.current[econYear] || []).includes(i + 1) }, m)))),
+        React.createElement(Field, { label: "Year" }, React.createElement("select", { id: "econYear", className: "field", value: econYear ?? '', onChange: e => onMonthYearChange('year', e.target.value) }, years.map(y => React.createElement("option", { key: y, value: y }, y)))),
+        React.createElement("div", { className: "flex items-end gap-2" },
+          React.createElement("button", { className: "kbd", onClick: fetchEcon, disabled: !canFetch }, "Fetch"),
+          React.createElement("button", { className: "kbd", onClick: () => econData && downloadCSV(`econ-${econData.date}.csv`, [
+            { metric: 'CPI_SA', date: econData.date, value: econData.cpi, notes: 'BLS CUSR0000SA0' },
+            { metric: 'UNRATE', date: econData.date, value: econData.un, notes: 'BLS LNS14000000' },
+            { metric: 'Y10_AVG', date: econData.date, value: econData.y10, notes: `Treasury bc_10year average of ${econData.y10Days} days` },
+            { metric: 'FEDFUNDS_AVG', date: econData.date, value: econData.fed, notes: 'FRED FEDFUNDS monthly avg from CSV' }
+          ]) , disabled: !econData }, "Download CSV"))),
+      econWarn && React.createElement("div", { className: "text-xs text-amber-600 mt-2" }, econWarn),
+      econError && React.createElement("div", { className: "text-xs text-red-600 mt-2" }, econError),
+      econData && renderEconTable(econData),
+      econData && React.createElement("p", { className: "text-xs text-slate-500 mt-2" }, "All sources are keyless endpoints; some FRED CSV requests may require a CORS proxy. Data is for personal use; methods: monthly values from BLS; daily-to-month average for Treasury 10Y and EFFR."))
+  );
+}
