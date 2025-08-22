@@ -2,10 +2,10 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
-import { proxiedFetch } from './lib/proxy.js';
-import { blsFetchSingle, blsFetchMany } from './lib/bls.js';
-import { fredSeriesObservations } from './lib/fred.js';
-import { treasuryQuery } from './lib/treasury.js';
+// Import helper functions from the global window object rather than using ES
+// module imports. This ensures the script runs correctly when loaded via a
+// classic script tag with Babel in the browser.
+const { proxiedFetch, blsFetchSingle, blsFetchMany, fredSeriesObservations, treasuryQuery } = window;
 // Simulation defaults used across calculators. Previously these values were
 // imported from "sim/horizonDefaults.js" using an ES module import, but the
 // additional module loader caused the app to render a blank page when the
@@ -1716,500 +1716,97 @@ function downloadCSV(name, rows) {
 }
 
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
-function DataPanel({ onPlaceholders }) {
-  const [dataSource, setDataSource] = useState('zip');
-  const [zip, setZip] = useLocalStorage('zip', '90210');
-  const [area, setArea] = useState(null);
-  const [home, setHome] = useState(null);
-  const [income, setIncome] = useState(null);
+function DataPanel() {
+  const [source, setSource] = useState('fred');
+  const [blsId, setBlsId] = useState('');
+  const [blsStart, setBlsStart] = useState('');
+  const [blsEnd, setBlsEnd] = useState('');
+  const [blsKey, setBlsKey] = useState('');
+  const [fredId, setFredId] = useState('');
+  const [fredKey, setFredKey] = useState('');
+  const [treasuryPath, setTreasuryPath] = useState('');
+  const [treasuryParams, setTreasuryParams] = useState('');
+  const [result, setResult] = useState(null);
   const [status, setStatus] = useState('');
-  const now = new Date();
-  const [econMonth, setEconMonth] = useState(String(now.getMonth() + 1));
-  const [econYear, setEconYear] = useState(String(now.getFullYear()));
-  const [econYearOpts, setEconYearOpts] = useState([String(now.getFullYear())]);
-  const [econWarning, setEconWarning] = useState('');
-  const [econError, setEconError] = useState(null);
-  const [econData, setEconData] = useState(null);
+  const [error, setError] = useState(null);
 
-  const refresh = async () => {
+  const fetchData = async () => {
     setStatus('Fetching…');
+    setError(null);
     try {
-      const [loc, hv, inc] = await Promise.all([
-        fetchZip(zip).catch(_ => null),
-        fetchMedianHomeValueByZip(zip).catch(_ => null),
-        fetchMedianIncomeByZip(zip).catch(_ => null)
-      ]);
-
-      setArea(loc);
-      setHome(hv);
-      setIncome(inc);
-
-      const mortgageAPRPH = 6.5;
-      const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
-      onPlaceholders?.({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, income: inc, rates: {} });
-      setStatus('Updated ✅');
-    } catch (e) {
-      console.warn('Data load failed', e);
-      setStatus('Fetch failed. Check inputs or try again.');
-    }
-  };
-
-  const fetchEcon = async () => {
-    setStatus('Fetching…');
-    setEconError(null);
-    try {
-      const mm = String(econMonth).padStart(2, '0');
-      const yy = String(econYear);
-      const yyyymm = yy + mm;
-      const dateKey = `${yy}-${mm}-01`;
-      const [seriesMap, tsy10, ffSeries] = await Promise.all([
-        fetchBLSMany(['CUSR0000SA0', 'LNS14000000'], { startyear: yy, endyear: yy }),
-        getTreasury10Y(yyyymm),
-        getFREDFedFunds(window.FRED_API_KEY)
-      ]);
-      const cpiSeries = seriesMap.get('CUSR0000SA0') || [];
-      const unrateSeries = seriesMap.get('LNS14000000') || [];
-      const cpi = cpiSeries.find(d => d.date === dateKey)?.value;
-      const unrate = unrateSeries.find(d => d.date === dateKey)?.value;
-      const fedFunds = ffSeries.find(d => d.date === dateKey)?.value;
-      const data = { date: dateKey, cpi, unemployment: unrate, treasury10Y: tsy10, fedFunds };
-      setEconData(data);
-      onPlaceholders?.(p => ({ ...p, ...data }));
-      setStatus('Updated ✅');
-    } catch (e) {
-      console.warn('Economic data load failed', e);
-      setEconError(e);
-      setStatus('Fetch failed. Check inputs or try again.');
-    }
-  };
-
-  const downloadEconCSV = () => {
-    if (!econData) return;
-    const rows = ECON_METRICS.map(m => ({
-      metric: m.label,
-      date: econData.date,
-      value: econData[m.key],
-      notes: m.notes
-    }));
-    const name = `econ-${econData.date.replace(/-/g, '').slice(0, 6)}`;
-    downloadCSV(name, rows);
-  };
-
-  const populateYearOptions = async () => {
-    try {
-      const getBLSRange = async id => {
-        const resp = await blsFetchSingle(id, { catalog: true, latest: 1 });
-        const text = await resp.text();
-        if (!resp.ok) {
-          const err = new Error(`BLS request failed: ${resp.status}`);
-          err.url = resp.url;
-          throw err;
+      let resp;
+      if (source === 'bls') {
+        const ids = blsId.split(',').map(s => s.trim()).filter(Boolean);
+        const opts = { startyear: blsStart || undefined, endyear: blsEnd || undefined, key: blsKey || undefined };
+        if (ids.length > 1) {
+          resp = await blsFetchMany(ids, opts);
+        } else {
+          resp = await blsFetchSingle(ids[0], opts);
         }
-        const json = JSON.parse(text);
-        const cat = json?.Results?.series?.[0]?.catalog;
-        const start = parseInt(cat?.startyear || cat?.begin_year || cat?.beginyear, 10);
-        const end = parseInt(cat?.endyear || cat?.end_year, 10);
-        return { min: start, max: end };
-      };
-      const getTreasuryRange = async () => {
-        const fetchYear = async sort => {
-          const resp = await treasuryQuery('v2/accounting/od/avg_interest_rates', {
-            format: 'json',
-            fields: 'record_date',
-            sort,
-            'page[number]': 1,
-            'page[size]': 1
-          });
-          if (!resp.ok) {
-            const err = new Error(`HTTP ${resp.status}`);
-            err.url = resp.url;
-            throw err;
-          }
-          const json = await resp.json();
-          const date = json?.data?.[0]?.record_date;
-          if (!date) throw new Error('record_date not found');
-          return parseInt(date.slice(0, 4), 10);
-        };
-        const min = await fetchYear('record_date');
-        const max = await fetchYear('-record_date');
-        return { min, max };
-      };
-      const [cpi, unrate, tsy] = await Promise.all([
-        getBLSRange('CUSR0000SA0'),
-        getBLSRange('LNS14000000'),
-        getTreasuryRange()
-      ]);
-      const thisYear = now.getFullYear();
-      const minYear = Math.max(cpi.min, unrate.min, tsy.min);
-      const maxYear = Math.min(cpi.max, unrate.max, tsy.max, thisYear);
-      const years = [];
-      for (let y = maxYear; y >= minYear; y--) years.push(String(y));
-      setEconYearOpts(years);
-      const newYear = years.includes(econYear) ? econYear : years[0];
-      if (newYear) setEconYear(newYear);
-      await onMonthYearChange(econMonth, newYear || econYear);
+      } else if (source === 'fred') {
+        resp = await fredSeriesObservations({ series_id: fredId, api_key: fredKey });
+      } else {
+        const paramsObj = {};
+        new URLSearchParams(treasuryParams).forEach((v, k) => paramsObj[k] = v);
+        resp = await treasuryQuery(treasuryPath, paramsObj);
+      }
+      const json = await resp.json();
+      setResult(json);
+      setStatus('Updated ✅');
     } catch (err) {
-      console.warn('Year options load failed', err);
-      const y = String(now.getFullYear());
-      setEconYearOpts([y]);
-      setEconYear(y);
+      console.warn('Fetch failed', err);
+      setError(err);
+      setStatus('Fetch failed. Check inputs or try again.');
     }
   };
 
-  const onMonthYearChange = async (m, y) => {
-    clearFetchCache();
-    const mm = String(m).padStart(2, '0');
-    const yy = String(y);
-    try {
-      const [seriesMap, tsy] = await Promise.all([
-        fetchBLSMany(['CUSR0000SA0', 'LNS14000000'], { startyear: yy, endyear: yy }),
-        getTreasury10Y(yy + mm)
-      ]);
-      const cpi = seriesMap.get('CUSR0000SA0') || [];
-      const unrate = seriesMap.get('LNS14000000') || [];
-      const dateKey = `${yy}-${mm}-01`;
-      const ok = cpi.some(d => d.date === dateKey) &&
-        unrate.some(d => d.date === dateKey) &&
-        Number.isFinite(tsy);
-      setEconWarning(ok ? '' : 'Data not available for this month.');
-    } catch (err) {
-      console.warn('Availability check failed', err);
-      setEconWarning('Data check failed.');
+  const renderSourceFields = () => {
+    if (source === 'bls') {
+      return /*#__PURE__*/React.createElement(React.Fragment, null,
+        React.createElement(Field, { label: 'Series ID(s)', hint: 'Comma separated for multiple' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: blsId, onChange: e => setBlsId(e.target.value), placeholder: 'CPIAUCSL' })),
+        React.createElement('div', { className: 'grid md:grid-cols-3 gap-3 mt-3' },
+          React.createElement(Field, { label: 'Start year' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: blsStart, onChange: e => setBlsStart(e.target.value), placeholder: '2010' })),
+          React.createElement(Field, { label: 'End year' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: blsEnd, onChange: e => setBlsEnd(e.target.value), placeholder: '2024' })),
+          React.createElement(Field, { label: 'API key (optional)' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: blsKey, onChange: e => setBlsKey(e.target.value) }))
+        )
+      );
     }
+    if (source === 'fred') {
+      return /*#__PURE__*/React.createElement('div', { className: 'grid md:grid-cols-2 gap-3 mt-3' },
+        React.createElement(Field, { label: 'Series ID' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: fredId, onChange: e => setFredId(e.target.value), placeholder: 'UNRATE' })),
+        React.createElement(Field, { label: 'API key' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: fredKey, onChange: e => setFredKey(e.target.value) }))
+      );
+    }
+    return /*#__PURE__*/React.createElement(React.Fragment, null,
+      React.createElement(Field, { label: 'Dataset path', hint: 'e.g., v1/accounting/od/...' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: treasuryPath, onChange: e => setTreasuryPath(e.target.value), placeholder: 'v1/accounting/od/...' })),
+      React.createElement(Field, { label: 'Parameters', hint: 'key=value&key2=value2' }, /*#__PURE__*/React.createElement('input', { className: 'field', value: treasuryParams, onChange: e => setTreasuryParams(e.target.value), placeholder: 'format=json&...' }))
+    );
   };
 
-  useEffect(() => { refresh(); }, []);
-  useEffect(() => { if (dataSource === 'econ') populateYearOptions(); }, [dataSource]);
+  const sourceNote = source === 'bls' ? 'Bureau of Labor Statistics' :
+    source === 'fred' ? 'Federal Reserve Economic Data (FRED)' :
+    'U.S. Department of the Treasury Fiscal Data';
 
-  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  // year options populated dynamically
-
-  return /*#__PURE__*/(
-    React.createElement(Section, { title: "Data (live placeholders)" }, /*#__PURE__*/
-      React.createElement(Field, { label: "Data source", hint: "Economic metrics include CPI, unemployment rate and more." }, /*#__PURE__*/
-        React.createElement("select", { id: "dataSource", className: "field", value: dataSource, onChange: e => setDataSource(e.target.value) }, /*#__PURE__*/
-          React.createElement("option", { value: "zip" }, "Zip code data"), /*#__PURE__*/
-          React.createElement("option", { value: "econ" }, "Economic data"))), /*#__PURE__*/
-
-        dataSource === 'zip'
-          ? /*#__PURE__*/(
-              React.createElement(React.Fragment, null, /*#__PURE__*/
-                React.createElement("div", { className: "grid md:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
-                  React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-                    React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" }), /*#__PURE__*/
-                    React.createElement("a", { className: "text-xs underline block mt-1", href: "https://tools.usps.com/zip-code-lookup.htm", target: "_blank", rel: "noreferrer" }, "Find ZIP by city"))), /*#__PURE__*/
-                  React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
-                    React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))), /*#__PURE__*/
-
-                React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-                  React.createElement("div", { className: "result" }, /*#__PURE__*/
-                    React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
-                    React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '—'), /*#__PURE__*/
-                    React.createElement("div", { className: "text-xs text-slate-500" }, (home == null ? void 0 : home.name) || '')), /*#__PURE__*/
-
-                  React.createElement("div", { className: "result" }, /*#__PURE__*/
-                    React.createElement("div", { className: "text-xs text-slate-500" }, "Median household income (ACS, ZIP)"), /*#__PURE__*/
-                    React.createElement("div", { className: "text-lg font-semibold" }, income && income.value ? money0(income.value) : '—'), /*#__PURE__*/
-                    React.createElement("div", { className: "text-xs text-slate-500" }, (income == null ? void 0 : income.name) || '')), /*#__PURE__*/
-
-                  React.createElement("div", { className: "result" }, /*#__PURE__*/
-                    React.createElement("div", { className: "text-xs text-slate-500" }, "Location"), /*#__PURE__*/
-                    React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '—'))), /*#__PURE__*/
-
-                React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
-                  React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-                  React.createElement("div", { className: "text-sm" }, status))
-              )
-            )
-          : /*#__PURE__*/(
-              React.createElement(React.Fragment, null,
-                React.createElement("div", { className: "flex flex-wrap gap-3 items-end mt-3" },
-                  React.createElement(Field, { label: "Month" },
-                    React.createElement("select", { id: "econMonth", className: "field", value: econMonth, onChange: e => { const m = e.target.value; setEconMonth(m); onMonthYearChange(m, econYear); } },
-                      monthNames.map((m, i) => /*#__PURE__*/React.createElement("option", { key: m, value: String(i + 1) }, m)))),
-                  React.createElement(Field, { label: "Year" },
-                    React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => { const y = e.target.value; setEconYear(y); onMonthYearChange(econMonth, y); } },
-                      econYearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))),
-                  React.createElement("div", { className: "flex items-end gap-2" },
-                    React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"),
-                    React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}`, onClick: downloadEconCSV, disabled: !econData }, "Download CSV")
-                  )
-                ),
-                econWarning && React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
-                econError && React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
-                  `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
-                  "If this is a CORS error, set PROXY to your Cloudflare Worker URL",
-                  " (e.g., https://<worker>.workers.dev/cors/?url=)."),
-                econData && React.createElement(React.Fragment, null,
-                  renderEconTable(econData),
-                  React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All data sourced from public APIs.")
-                ),
-                React.createElement("div", { className: "result mt-3" },
-                  React.createElement("div", { className: "text-xs text-slate-500" }, "Status"),
-                  React.createElement("div", { className: "text-sm" }, status)
-                ),
-                React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh." )
-              )
-            )
-        ));
-  }
-
-/* --------------------------- Landing + Tabs --------------------------- */
-const TABS = [
-{ id: 'home', label: 'Home' },
-{ id: 'mortgage', label: 'Mortgage' },
-{ id: 'compound', label: 'Compound' },
-{ id: 'retire', label: 'Retirement' },
-{ id: 'debt', label: 'Debt Payoff' },
-{ id: 'auto', label: 'Auto' },
-{ id: 'rent', label: 'Home Affordability' },
-{ id: 'networth', label: 'Net Worth' },
-{ id: 'tax', label: 'Tax' },
-{ id: 'ss', label: 'Social Security' },
-{ id: 'sim', label: 'Simulations' },
-{ id: 'data', label: 'Data' }];
-
-const CARDS = [
-{ id: 'mortgage', title: 'Mortgage / Loan', why: 'Estimate payments and compare strategies like extra paydowns, refinancing, or lump sums.' },
-{ id: 'compound', title: 'Compound Interest', why: 'Project investment growth over time with recurring contributions.' },
-{ id: 'retire', title: 'Retirement Goal', why: 'Figure out the monthly savings needed to reach a future nest egg.' },
-{ id: 'debt', title: 'Debt Payoff', why: 'Simulate paying multiple debts using avalanche or snowball methods.' },
-{ id: 'auto', title: 'Auto Affordability', why: 'Estimate car budget, max loan, and compare leasing versus buying.' },
-{ id: 'rent', title: 'Home Affordability', why: 'Derive an affordable purchase price and housing cost from your rent and expenses.' },
-{ id: 'networth', title: 'Net Worth', why: 'Track assets and liabilities with a color-coded balance sheet.' },
-{ id: 'tax', title: 'Taxes (2025)', why: 'Approximate federal and state income taxes with current brackets.' },
-{ id: 'ss', title: 'Social Security', why: 'Compare benefits at different retirement ages.' },
-{ id: 'sim', title: 'Simulations', why: 'Run Monte Carlo experiments for investment growth or retirement outcomes.' },
-{ id: 'data', title: 'Data Sources', why: 'Load open ZIP-based data like home values to prefill placeholders.' }];
-
-const FUN_FACTS = {
-  mortgage: [
-    'The word “mortgage” comes from Old French meaning “dead pledge.”',
-    'Making biweekly payments can shave years off a 30-year mortgage.',
-    'Paying extra principal early saves more interest than later payments.',
-    'The first modern mortgage loans appeared in the 19th century.',
-    'In many countries a 30-year fixed-rate loan is unique to the U.S.',
-    'Paying one extra monthly payment per year can cut a 30-year mortgage to about 25 years.',
-    'FHA loans often require as little as 3.5% down.',
-    'Your mortgage payment typically includes principal, interest, taxes, and insurance (PITI).',
-    'Some mortgages allow recasting after a large principal payment.',
-    'The 15-year mortgage usually has lower rates than the 30-year.',
-    'Private mortgage insurance (PMI) can be canceled once you have 20% equity.',
-    'Adjustable-rate mortgages usually have a fixed period before rates adjust.',
-    'The 2008 housing crisis was triggered by subprime mortgage defaults.',
-    'Mortgages in Denmark can sometimes have negative interest rates.',
-    'Early payoff penalties are less common today than in decades past.',
-    'A mortgage note is a legal document pledging the property as collateral.',
-    'In many U.S. states mortgages are non-recourse, meaning lenders can only take the house.',
-    'VA loans for veterans often require no down payment.',
-    'Mortgage-backed securities bundle many loans into investment products.',
-    "Some buyers 'house hack' by renting spare rooms to help cover the mortgage."
-  ],
-  compound: [
-    'Albert Einstein allegedly called compound interest the eighth wonder of the world.',
-    'Rule of 72: divide 72 by an interest rate to estimate doubling time.',
-    'A single penny doubled every day for 30 days grows past $5 million.',
-    'Compounding more frequently than annually slightly increases returns.',
-    'Time in the market often matters more than timing the market.',
-    'Starting early allows more compounding periods and greater growth.',
-    "Continuous compounding uses Euler's number e to calculate growth.",
-    'At 7% annual return, investments roughly double every 10 years.',
-    'Compound interest works against you with debt as well as for you with savings.',
-    'Ben Franklin left money in trust that grew for 200 years via compounding.',
-    'Stock dividends that are reinvested harness compound growth.',
-    'Many retirement accounts compound tax-deferred.',
-    'A 1% difference in return can lead to huge differences over decades.',
-    'Interest compounded quarterly yields more than annually at the same APR.',
-    'The compound interest formula is A = P(1 + r/n)^{nt}.',
-    'Warren Buffett credits compound interest for much of his wealth.',
-    'Compounding can be visualized with exponential curves.',
-    'Bank savings accounts compound interest daily or monthly.',
-    'Real estate values can compound through appreciation and reinvested profits.',
-    'Credit card debt compounds interest on average daily.'
-  ],
-  retire: [
-    'The concept of retirement only became common in the 20th century.',
-    '401(k) plans were created in the U.S. tax code in 1978.',
-    'Many advisors suggest saving at least 15% of income for retirement.',
-    'Social Security originally paid benefits starting at age 65 in 1935.',
-    'Retirees today can expect to spend 20 years or more in retirement.',
-    'The FIRE movement aims for financial independence and early retirement.',
-    'Traditional pensions have become less common in the private sector.',
-    'Roth IRAs allow tax-free withdrawals in retirement.',
-    'Healthcare often becomes one of the largest expenses for retirees.',
-    'Required minimum distributions start at age 73 in the U.S.',
-    'Many retirees downsize homes to reduce expenses.',
-    'Social Security benefits increase the longer you delay claiming up to age 70.',
-    'Retirees may spend more on travel in early retirement years.',
-    'Some countries have mandatory retirement savings schemes.',
-    'The 4% rule suggests withdrawing 4% of your portfolio annually.',
-    'Women typically live longer and may need larger retirement savings.',
-    'Many people pursue part-time work or hobbies for income in retirement.',
-    'Compound interest is critical when saving for retirement early.',
-    'Inflation can erode retirement income purchasing power.',
-    'Longevity risk is the chance of outliving your savings.'
-  ],
-  debt: [
-    'The snowball method builds momentum by tackling the smallest debt first.',
-    'Avalanche pays off debt faster mathematically by targeting highest APRs.',
-    'The average credit card APR in the U.S. is now above 20%.',
-    'Paying just $50 extra each month can save thousands in interest.',
-    'Debt snowball was popularized by radio host Dave Ramsey.',
-    'Average U.S. household debt exceeds $100,000.',
-    'Student loan debt in the U.S. totals over $1.7 trillion.',
-    'Paying more than the minimum credit card payment reduces interest drastically.',
-    'Debt-to-income ratio is a key metric for lenders.',
-    'Consolidation loans can simplify multiple debts into one payment.',
-    'Some states have statutes of limitations on how long debts can be collected.',
-    'Bankruptcy can remain on credit reports for up to 10 years.',
-    'The average American carries four credit cards.',
-    'Interest on some debts like mortgages can be tax-deductible.',
-    'Debt settlement can harm credit but reduce balances.',
-    'Payday loans often carry APRs exceeding 400%.',
-    'Credit scores factor in credit utilization, payment history, and more.',
-    'Closing old credit accounts can temporarily lower credit scores.',
-    'High debt levels can hinder ability to qualify for mortgages or car loans.',
-    'The Fair Debt Collection Practices Act protects consumers from abusive tactics.'
-  ],
-  auto: [
-    'A new car typically loses around 20% of its value in the first year.',
-    'Lease money factors can be converted to APR by multiplying by 2400.',
-    'Leasing often limits mileage to 10–15k miles per year.',
-    'Average car loan terms have stretched to about 70 months.',
-    'Electric vehicles have fewer moving parts than gas cars.',
-    'The average new car price in the U.S. surpasses $48,000.',
-    'Cars start depreciating the moment they drive off the lot.',
-    'Hybrid vehicles can recapture energy through regenerative braking.',
-    'Some states offer rebates for purchasing electric vehicles.',
-    'GAP insurance covers the difference between a car\'s value and what you owe.',
-    'Car insurance rates often drop after age 25.',
-    'Maintenance costs increase significantly after 100,000 miles.',
-    'Leasing usually requires returning the car in good condition or paying fees.',
-    'Car subscriptions are emerging as an alternative to leasing or buying.',
-    'The first speeding ticket was issued in 1902 at 45 mph.',
-    'Horsepower originally referred to the power of a draft horse.',
-    'Tires usually lose about 1 PSI of pressure per month.',
-    'Automotive loans longer than 84 months are considered risky.',
-    'Some modern cars have over 100 million lines of software code.',
-    'A well-maintained vehicle can easily last over 200,000 miles.'
-  ],
-  rent: [
-    'A common rule of thumb is to spend no more than 30% of income on housing.',
-    'Property taxes can vary dramatically from one county to another.',
-    'Homeowners in the U.S. move every 7 to 10 years on average.',
-    'Mortgage preapproval letters can strengthen purchase offers.',
-    'In some markets renting can be cheaper than owning even long term.',
-    'Rent control laws exist in cities like New York and San Francisco.',
-    'Landlords typically screen tenants with credit and background checks.',
-    'Security deposits are often equal to one month\'s rent.',
-    'Renters insurance is inexpensive and covers personal belongings.',
-    'Some landlords offer rent discounts for long-term leases.',
-    'Rent-to-own agreements let tenants apply rent toward purchase.',
-    'The term "landlord" dates back to feudal times.',
-    'Many leases require 30-day notice before moving out.',
-    'Pet-friendly rentals may charge additional deposits or monthly fees.',
-    'Online listings have replaced newspaper classifieds for rentals.',
-    'Rent ratios compare the cost of renting vs buying in a market.',
-    'Co-living spaces offer shared housing with individual leases.',
-    'In some cities, vacant units pay higher taxes to deter speculation.',
-    'Moving during winter can sometimes yield lower rent prices.',
-    'Housing choice vouchers help low-income families pay rent.'
-  ],
-  networth: [
-    'Net worth equals assets minus liabilities.',
-    'Tracking net worth over time helps reveal financial progress.',
-    'Many billionaires once had negative net worth due to heavy debt.',
-    'The top 1% of U.S. households hold over $10 million in wealth.',
-    'Emergency funds are counted as assets in net worth calculations.',
-    'A positive net worth means assets exceed liabilities.',
-    'Net worth can fluctuate with market changes daily.',
-    'Tracking net worth monthly helps monitor financial health.',
-    'High-net-worth individuals are often defined as having $1 million in liquid assets.',
-    'Liabilities like mortgages decrease as you make payments, boosting net worth.',
-    'Investing in appreciating assets can grow net worth over time.',
-    'Depreciating assets like cars reduce net worth as they lose value.',
-    'Some people track net worth using spreadsheets or apps.',
-    "Net worth is a snapshot and doesn't reflect cash flow.",
-    'Inflation can erode the real value of net worth.',
-    'Dividing net worth by age provides a rough benchmark for savings.',
-    'Net worth milestones, like the first $100k, are celebrated in finance communities.',
-    'Entrepreneurs often reinvest profits, delaying net worth growth.',
-    'Debt payoff strategies directly increase net worth.',
-    'A negative net worth is common early in adulthood due to student loans.'
-  ],
-  tax: [
-    'The U.S. introduced the federal income tax in 1913.',
-    'The highest U.S. marginal tax rate peaked at 94% during WWII.',
-    'Several states including Texas and Florida have no state income tax.',
-    'The IRS processes more than 150 million tax returns each year.',
-    'Electronic filing usually yields faster refunds than paper returns.',
-    'Tax brackets in the U.S. are progressive; higher income is taxed at higher rates.',
-    'The IRS was created by President Lincoln in 1862.',
-    'The first e-file tax return was transmitted in 1986.',
-    'Some countries have flat tax systems instead of progressive ones.',
-    'Tax refunds are essentially an interest-free loan to the government.',
-    'Capital gains may be taxed differently than regular income.',
-    'The average American spends 13 hours preparing their tax return.',
-    'The Alternative Minimum Tax was designed to ensure wealthy pay minimum taxes.',
-    'Sales taxes vary by state and locality.',
-    'Some states have no sales tax, like Oregon.',
-    'Child tax credits can significantly reduce tax liability.',
-    'Payroll taxes fund Social Security and Medicare.',
-    'Property taxes often fund local schools and services.',
-    'Tax audits are rare, with less than 1% of returns examined.',
-    'The U.S. tax code spans thousands of pages.'
-  ],
-  ss: [
-    'Social Security was established in 1935.',
-    'Delaying benefits past full retirement age increases payments by about 8% per year until age 70.',
-    'About 67 million Americans received Social Security benefits in 2023.',
-    'Social Security is primarily funded by payroll taxes under FICA.',
-    'The first monthly Social Security check was issued in 1940.'
-  ],
-  data: [
-    'Open data portals let you download housing and wage statistics for free.',
-    'ZIP Codes were created in 1963 to speed up mail delivery.',
-    'Many governments provide APIs for real-time economic data.',
-    'Real estate sale records can lag by months before publication.',
-    'Analyzing public data can uncover surprising financial trends.',
-    'APIs often return data in JSON format for easy parsing.',
-    'OpenStreetMap is a crowdsourced geographic database.',
-    'Governments release data under open licenses for public use.',
-    'Big data tools like Hadoop and Spark process massive datasets.',
-    'Data visualizations help communicate complex information quickly.',
-    'Many datasets include metadata describing their contents and provenance.',
-    'CSV is a common flat-file format for tabular data.',
-    'Some APIs rate-limit requests to prevent abuse.',
-    'Data cleaning often consumes most of a data scientist\'s time.',
-    'Open government initiatives aim to increase transparency.',
-    'Weather data is frequently used in economic forecasting.',
-    'Machine learning models rely on high-quality training data.',
-    'Data breaches can expose sensitive personal information.',
-    'Real-time APIs power live dashboards and apps.',
-    'Public datasets can be combined to uncover new insights.'
-  ],
-  sim: [
-    'Monte Carlo methods model uncertainty by running many random trials.',
-    'The approach was popularized during the Manhattan Project.',
-    'In finance, Monte Carlo simulations help estimate investment risk and return.',
-    'More simulation runs generally yield more reliable percentile estimates.'
-  ]
-};
-
-function Home({ onOpen }) {
-  return /*#__PURE__*/(
-    React.createElement(Section, { title: "Pick a Calculator", right: /*#__PURE__*/React.createElement("span", { className: "text-xs text-slate-500" }, "Everything updates instantly") }, /*#__PURE__*/
-    React.createElement("div", { className: "grid sm:grid-cols-2 lg:grid-cols-3 gap-3" },
-    CARDS.map((c) => /*#__PURE__*/
-    React.createElement("div", { key: c.id, className: "p-4 rounded-2xl border bg-white/70 hover:shadow-card transition" }, /*#__PURE__*/
-    React.createElement("div", { className: "font-medium mb-1" }, c.title), /*#__PURE__*/
-    React.createElement("p", { className: "text-sm text-slate-600 mb-3" }, c.why), /*#__PURE__*/
-    React.createElement("button", { className: "kbd", onClick: () => onOpen(c.id) }, "Open"))))));
-
-
-
-
-
+  return /*#__PURE__*/React.createElement(Section, { title: 'Data' },
+    React.createElement(Field, { label: 'Data source' }, /*#__PURE__*/React.createElement('select', { className: 'field', value: source, onChange: e => setSource(e.target.value) },
+      /*#__PURE__*/React.createElement('option', { value: 'fred' }, 'FRED'),
+      /*#__PURE__*/React.createElement('option', { value: 'treasury' }, 'Treasury Fiscal Data'),
+      /*#__PURE__*/React.createElement('option', { value: 'bls' }, 'BLS')
+    )),
+    renderSourceFields(),
+    React.createElement('div', { className: 'mt-3' }, /*#__PURE__*/React.createElement('button', { className: 'kbd', onClick: fetchData }, 'Fetch')),
+    result && /*#__PURE__*/React.createElement('pre', { className: 'result mt-3 text-xs overflow-auto' }, JSON.stringify(result, null, 2)),
+    result && /*#__PURE__*/React.createElement('p', { className: 'text-[11px] text-slate-500 mt-1' }, `Source: ${sourceNote}`),
+    error && /*#__PURE__*/React.createElement('p', { className: 'text-xs text-red-600 mt-2 break-all' }, error.url ? `Failed to fetch ${error.url}` : 'Fetch failed'),
+    React.createElement('p', { className: 'text-[11px] text-slate-500 mt-4' }, 'Sources: ',
+      /*#__PURE__*/React.createElement('a', { href: 'https://www.bls.gov/developers/', className: 'underline', target: '_blank', rel: 'noreferrer' }, 'BLS API'),
+      ', ',
+      /*#__PURE__*/React.createElement('a', { href: 'https://fred.stlouisfed.org/docs/api/fred/', className: 'underline', target: '_blank', rel: 'noreferrer' }, 'FRED API'),
+      ', ',
+      /*#__PURE__*/React.createElement('a', { href: 'https://fiscaldata.treasury.gov/api-documentation/', className: 'underline', target: '_blank', rel: 'noreferrer' }, 'Treasury Fiscal Data'),
+      '. Live market/economic data retrieved from official public APIs; formatting/aggregation performed client-side. Past performance \u2260 future results.'),
+    status && /*#__PURE__*/React.createElement('p', { className: 'text-xs text-slate-500 mt-1' }, status)
+  );
 }
 
 function FunFacts({ topic }) {
