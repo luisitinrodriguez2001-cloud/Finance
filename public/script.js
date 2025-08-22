@@ -1646,6 +1646,7 @@ function DataPanel({ onPlaceholders }) {
   const [econYear, setEconYear] = useState(String(now.getFullYear()));
   const [econYearOpts, setEconYearOpts] = useState([String(now.getFullYear())]);
   const [econWarning, setEconWarning] = useState('');
+  const [econData, setEconData] = useState(null);
 
   const refresh = async () => {
     setStatus('Fetching…');
@@ -1673,12 +1674,43 @@ function DataPanel({ onPlaceholders }) {
   const fetchEcon = async () => {
     setStatus('Fetching…');
     try {
-      // TODO: implement economic data fetching
-      setStatus('No data fetched');
+      const mm = String(econMonth).padStart(2, '0');
+      const yy = String(econYear);
+      const yyyymm = yy + mm;
+      const dateKey = `${yy}-${mm}-01`;
+      const [cpiSeries, unrateSeries, tsy10, ffSeries] = await Promise.all([
+        getBLS('CUUR0000SA0'),
+        getBLS('LNS14000000'),
+        getTreasury10Y(yyyymm),
+        getFREDFedFundsCSV()
+      ]);
+      const cpi = cpiSeries.find(d => d.date === dateKey)?.value;
+      const unrate = unrateSeries.find(d => d.date === dateKey)?.value;
+      const fedFunds = ffSeries.find(d => d.date === dateKey)?.value;
+      const data = { date: dateKey, cpi, unemployment: unrate, treasury10Y: tsy10, fedFunds };
+      setEconData(data);
+      onPlaceholders?.(p => ({ ...p, ...data }));
+      setStatus('Updated ✅');
     } catch (e) {
       console.warn('Economic data load failed', e);
       setStatus('Fetch failed. Check inputs or try again.');
     }
+  };
+
+  const downloadEconCSV = () => {
+    if (!econData) return;
+    const header = ['date', 'cpi', 'unemployment', 'treasury10y', 'fedfunds'];
+    const row = [econData.date, econData.cpi, econData.unemployment, econData.treasury10Y, econData.fedFunds];
+    const csv = `${header.join(',')}\n${row.join(',')}\n`;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `econ-${econData.date.replace(/-/g, '').slice(0,6)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const populateYearOptions = async () => {
@@ -1801,8 +1833,8 @@ function DataPanel({ onPlaceholders }) {
               React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => { const y = e.target.value; setEconYear(y); onMonthYearChange(econMonth, y); } },
                 econYearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))), /*#__PURE__*/
             React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
-              React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"), /*#__PURE__*/
-              React.createElement("button", { className: "kbd opacity-50 cursor-not-allowed", disabled: true }, "Download CSV"))),
+                React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"), /*#__PURE__*/
+                React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}` , onClick: downloadEconCSV, disabled: !econData }, "Download CSV"))
           econWarning && /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning), /*#__PURE__*/
           React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
             React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
