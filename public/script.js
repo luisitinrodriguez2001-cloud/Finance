@@ -196,8 +196,9 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 }
 
 /* ----------------------- Live data helpers (ZIP/Census) ----------------------- */
-// Optional proxy for CORS-restricted endpoints. Set to your Cloudflare Worker URL
-// to forward requests (e.g., 'https://your-worker.example.com/').
+// Optional proxy for CORS-restricted endpoints. Set to your Cloudflare Worker
+// URL including the `/cors/?url=` pattern
+// (e.g., 'https://your-worker.example.com/cors/?url=').
 //
 // Cloudflare Worker snippet:
 // export default {
@@ -206,9 +207,9 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 //     return fetch(url, req);
 //   }
 // };
-const PROXY = 'https://autumn-dew-1295.luisitinrodriguez2001.workers.dev/';
+const PROXY = 'https://autumn-dew-1295.luisitinrodriguez2001.workers.dev/cors/?url=';
 function maybeProxy(url) {
-  return PROXY ? PROXY + url : url;
+  return PROXY ? PROXY + encodeURIComponent(url) : url;
 }
 
 // Simple cache of in-flight and completed fetches by URL
@@ -1915,7 +1916,8 @@ function DataPanel({ onPlaceholders }) {
                 econWarning && React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
                 econError && React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
                   `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
-                  "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL."),
+                  "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL",
+                  " (e.g., https://<worker>.workers.dev/cors/?url=)."),
                 econData && React.createElement(React.Fragment, null,
                   renderEconTable(econData),
                   React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")
