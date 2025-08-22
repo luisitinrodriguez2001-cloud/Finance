@@ -2,9 +2,10 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
-import { PROXY } from './config.js';
 import { proxiedFetch } from './lib/proxy.js';
 import { blsFetchSingle, blsFetchMany } from './lib/bls.js';
+import { fredSeriesObservations } from './lib/fred.js';
+import { treasuryQuery } from './lib/treasury.js';
 // Simulation defaults used across calculators. Previously these values were
 // imported from "sim/horizonDefaults.js" using an ES module import, but the
 // additional module loader caused the app to render a blank page when the
@@ -337,26 +338,34 @@ async function getTreasury10Y(yyyymm) {
   const m = yyyymm.slice(4, 6);
   const start = `${y}-${m}-01`;
   const end = m === '12' ? `${parseInt(y) + 1}-01-01` : `${y}-${String(parseInt(m) + 1).padStart(2, '0')}-01`;
-  const url = `https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/daily_treasury_yield_curve?filter=record_date:ge:${start},record_date:lt:${end}&fields=record_date,bc_10year&sort=record_date`;
-  let text = '';
+  let text = '', resp;
   try {
-    const resp = await retryingFetch(url, {}, 3, 'data/econ');
+    resp = await treasuryQuery('v2/accounting/od/daily_treasury_yield_curve', {
+      filter: `record_date:ge:${start},record_date:lt:${end}`,
+      fields: 'record_date,bc_10year',
+      sort: 'record_date'
+    });
+    if (!resp.ok) {
+      const err = new Error(`HTTP ${resp.status}`);
+      err.url = resp.url;
+      throw err;
+    }
     text = await resp.text();
   } catch (err) {
     const e = new Error(`Treasury request failed: ${err instanceof Error ? err.message : err}`);
-    e.url = err.url || url;
+    e.url = err.url || resp?.url;
     throw e;
   }
   let json;
   try { json = JSON.parse(text); } catch (_) {
     const e = new Error(`Treasury parse error: ${text.slice(0, 200)}`);
-    e.url = url;
+    e.url = resp?.url;
     throw e;
   }
   const arr = json && json.data;
   if (!Array.isArray(arr)) {
     const e = new Error(`Unexpected Treasury schema: ${text.slice(0, 200)}`);
-    e.url = url;
+    e.url = resp?.url;
     throw e;
   }
   const vals = arr.map(r => parseFloat(r.bc_10year)).filter(Number.isFinite);
@@ -366,48 +375,45 @@ async function getTreasury10Y(yyyymm) {
 }
 
 let FRED_FF_CACHE = null;
-async function getFREDFedFundsCSV() {
+async function getFREDFedFunds(apiKey = '') {
   if (FRED_FF_CACHE) return FRED_FF_CACHE;
-  const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFF';
-  let text = '', fetchUrl = url;
+  let text = '', resp;
   try {
-    const resp = await withTimeout(fetch(url), 12000);
+    resp = await fredSeriesObservations({
+      series_id: 'DFF',
+      api_key: apiKey,
+      params: { frequency: 'm', aggregation_method: 'avg' }
+    });
     if (!resp.ok) {
       const err = new Error(`HTTP ${resp.status}`);
-      err.url = url;
+      err.url = resp.url;
       throw err;
     }
     text = await resp.text();
   } catch (err) {
-    console.warn('Direct FRED fetch failed, retrying via proxy');
-    fetchUrl = PROXY + encodeURIComponent(url);
-    const resp2 = await retryingFetch(url, {}, 3, 'data/econ');
-    text = await resp2.text();
-  }
-  const lines = text.trim().split(/\r?\n/);
-  const header = lines.shift();
-  if (!header || header.indexOf('DATE') === -1) {
-    const e = new Error(`Unexpected FRED CSV format: ${text.slice(0, 200)}`);
-    e.url = fetchUrl;
+    const e = new Error(`FRED request failed: ${err instanceof Error ? err.message : err}`);
+    e.url = err.url || resp?.url;
     throw e;
   }
-  const map = new Map();
-  for (const line of lines) {
-    const [d, vStr] = line.split(',');
-    const v = parseFloat(vStr);
-    if (!Number.isFinite(v)) continue;
-    const [yy, mm] = d.split('-');
-    const key = `${yy}-${mm}-01`;
-    const entry = map.get(key) || { sum: 0, count: 0 };
-    entry.sum += v; entry.count++;
-    map.set(key, entry);
+  let json;
+  try { json = JSON.parse(text); } catch (_) {
+    const e = new Error(`FRED parse error: ${text.slice(0, 200)}`);
+    e.url = resp?.url;
+    throw e;
   }
-  const res = Array.from(map.entries()).map(([date, { sum, count }]) => ({ date, value: sum / count }));
+  const arr = json && json.observations;
+  if (!Array.isArray(arr)) {
+    const e = new Error(`Unexpected FRED schema: ${text.slice(0, 200)}`);
+    e.url = resp?.url;
+    throw e;
+  }
+  const res = arr.map(o => ({ date: o.date, value: parseFloat(o.value) }))
+    .filter(d => Number.isFinite(d.value));
   FRED_FF_CACHE = res;
   return res;
 }
 
-Object.assign(window, { getTreasury10Y, getFREDFedFundsCSV });
+Object.assign(window, { getTreasury10Y, getFREDFedFunds });
 
 /* ----------------------- Micro UI ----------------------- */
 const Section = ({ title, right, children }) => /*#__PURE__*/
@@ -1686,8 +1692,8 @@ function Simulations({ scenarioDefaults }) {
 const ECON_METRICS = [
   { key: 'cpi', label: 'CPI-U (headline, SA)', notes: 'BLS CUSR0000SA0', hint: 'Consumer Price Index for All Urban Consumers, seasonally adjusted.' },
   { key: 'unemployment', label: 'Unemployment rate (U-3)', notes: 'BLS LNS14000000', hint: 'Civilian unemployment rate, seasonally adjusted (U-3).' },
-  { key: 'treasury10Y', label: '10-Year Treasury yield (avg)', notes: 'Treasury Yield Curve XML (bc_10year)', hint: 'Average 10-year Treasury yield from the daily curve.' },
-  { key: 'fedFunds', label: 'Effective Fed Funds (avg)', notes: 'FRED CSV (FEDFUNDS)', hint: 'Monthly average of the effective federal funds rate.' }
+  { key: 'treasury10Y', label: '10-Year Treasury yield (avg)', notes: 'Treasury API (bc_10year)', hint: 'Average 10-year Treasury yield from the daily curve.' },
+  { key: 'fedFunds', label: 'Effective Fed Funds (avg)', notes: 'FRED API (DFF)', hint: 'Monthly average of the effective federal funds rate.' }
 ];
 
 function renderEconTable(data) {
@@ -1759,7 +1765,7 @@ function DataPanel({ onPlaceholders }) {
       const [seriesMap, tsy10, ffSeries] = await Promise.all([
         fetchBLSMany(['CUSR0000SA0', 'LNS14000000'], { startyear: yy, endyear: yy }),
         getTreasury10Y(yyyymm),
-        getFREDFedFundsCSV()
+        getFREDFedFunds(window.FRED_API_KEY)
       ]);
       const cpiSeries = seriesMap.get('CUSR0000SA0') || [];
       const unrateSeries = seriesMap.get('LNS14000000') || [];
@@ -1806,14 +1812,23 @@ function DataPanel({ onPlaceholders }) {
         return { min: start, max: end };
       };
       const getTreasuryRange = async () => {
-        const base = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?format=xml&fields=record_date&sort=';
         const fetchYear = async sort => {
-          const url = `${base}${sort}&page[number]=1&page[size]=1`;
-          const resp = await retryingFetch(url, {}, 3, 'data/econ');
-          const text = await resp.text();
-          const m = text.match(/<record_date>(\d{4})-\d{2}-\d{2}<\/record_date>/i);
-          if (!m) throw new Error('record_date not found');
-          return parseInt(m[1], 10);
+          const resp = await treasuryQuery('v2/accounting/od/avg_interest_rates', {
+            format: 'json',
+            fields: 'record_date',
+            sort,
+            'page[number]': 1,
+            'page[size]': 1
+          });
+          if (!resp.ok) {
+            const err = new Error(`HTTP ${resp.status}`);
+            err.url = resp.url;
+            throw err;
+          }
+          const json = await resp.json();
+          const date = json?.data?.[0]?.record_date;
+          if (!date) throw new Error('record_date not found');
+          return parseInt(date.slice(0, 4), 10);
         };
         const min = await fetchYear('record_date');
         const max = await fetchYear('-record_date');
@@ -1923,11 +1938,11 @@ function DataPanel({ onPlaceholders }) {
                 econWarning && React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
                 econError && React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
                   `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
-                  "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL",
+                  "If this is a CORS error, set PROXY to your Cloudflare Worker URL",
                   " (e.g., https://<worker>.workers.dev/cors/?url=)."),
                 econData && React.createElement(React.Fragment, null,
                   renderEconTable(econData),
-                  React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")
+                  React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All data sourced from public APIs.")
                 ),
                 React.createElement("div", { className: "result mt-3" },
                   React.createElement("div", { className: "text-xs text-slate-500" }, "Status"),
