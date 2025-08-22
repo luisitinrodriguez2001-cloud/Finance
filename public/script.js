@@ -206,7 +206,7 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 //     return fetch(url, req);
 //   }
 // };
-const PROXY = '';
+const PROXY = 'https://autumn-dew-1295.luisitinrodriguez2001.workers.dev/';
 function maybeProxy(url) {
   return PROXY ? PROXY + url : url;
 }
