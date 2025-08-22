@@ -1734,7 +1734,8 @@ function DataPanel({ onPlaceholders }) {
       const yyyymm = yy + mm;
       const dateKey = `${yy}-${mm}-01`;
       const [cpiSeries, unrateSeries, tsy10, ffSeries] = await Promise.all([
-        getBLS('CUUR0000SA0'),
+        // Use seasonally adjusted CPI-U series to match other economic helpers
+        getBLS('CUSR0000SA0'),
         getBLS('LNS14000000'),
         getTreasury10Y(yyyymm),
         getFREDFedFundsCSV()
