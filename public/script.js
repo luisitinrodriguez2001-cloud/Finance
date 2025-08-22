@@ -2,10 +2,10 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
-import { proxiedFetch } from './lib/proxy.js';
-import { blsFetchSingle, blsFetchMany } from './lib/bls.js';
-import { fredSeriesObservations } from './lib/fred.js';
-import { treasuryQuery } from './lib/treasury.js';
+// Import helper functions from the global window object rather than using ES
+// module imports. This ensures the script runs correctly when loaded via a
+// classic script tag with Babel in the browser.
+const { proxiedFetch, blsFetchSingle, blsFetchMany, fredSeriesObservations, treasuryQuery } = window;
 // Simulation defaults used across calculators. Previously these values were
 // imported from "sim/horizonDefaults.js" using an ES module import, but the
 // additional module loader caused the app to render a blank page when the
