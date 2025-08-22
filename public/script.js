@@ -206,7 +206,7 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 //     return fetch(url, req);
 //   }
 // };
-const PROXY = '';
+const PROXY = 'https://<worker>.workers.dev/';
 function maybeProxy(url) {
   return PROXY ? PROXY + url : url;
 }
