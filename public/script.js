@@ -231,6 +231,114 @@ async function fetchMedianIncomeByZip(zip) {
   return Number.isFinite(n) ? { name, value: n } : null;
 }
 
+/* ----------------------- Econ data helpers ----------------------- */
+// Set PROXY to a CORS-bypassing endpoint when needed, e.g. a Cloudflare Worker.
+// Example Worker:
+// export default { async fetch(r) { const url = new URL(r.url).searchParams.get('url'); return fetch(url); } };
+const PROXY = '';
+
+const econCache = {}; const blsSeries = {};
+const maybeProxy = url => PROXY ? `${PROXY}${encodeURIComponent(url)}` : url;
+const withTimeout = (p, ms = 12000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), ms))]);
+
+async function retryingFetch(url, opts = {}) {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const r = await withTimeout(fetch(url, opts), 12000);
+      if (!r.ok) {
+        const body = await r.text();
+        const msg = `HTTP ${r.status} ${body.slice(0, 500)}`;
+        throw Object.assign(new Error(msg), { url });
+      }
+      return r;
+    } catch (e) {
+      if (attempt === 3) throw e;
+      console.warn(`[data/econ] attempt ${attempt} failed: ${e.message}`);
+      await new Promise(res => setTimeout(res, 400 * attempt + Math.random() * 400));
+    }
+  }
+}
+
+async function getBLS(seriesId) {
+  const url = `https://api.bls.gov/publicAPI/v2/timeseries/data/${seriesId}`;
+  if (!econCache[url]) econCache[url] = retryingFetch(url).then(r => r.json());
+  const json = await econCache[url];
+  const arr = json?.Results?.series?.[0]?.data;
+  if (!Array.isArray(arr)) throw Object.assign(new Error('Bad BLS schema'), { url });
+  return arr.map(d => {
+    const m = d.period?.replace('M', '').padStart(2, '0');
+    const date = `${d.year}-${m}-01`;
+    const v = parseFloat(d.value);
+    return Number.isFinite(v) ? { date, value: v } : null;
+  }).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+async function getTreasury10Y(yyyymm) {
+  const url = `https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value_month=${yyyymm}`;
+  if (!econCache[url]) econCache[url] = retryingFetch(url).then(r => r.text());
+  const text = await econCache[url];
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  const records = Array.from(doc.getElementsByTagName('record'));
+  if (!records.length) return [];
+  return records.map(r => {
+    const date = r.getElementsByTagName('record_date')[0]?.textContent;
+    const v = parseFloat(r.getElementsByTagName('bc_10year')[0]?.textContent);
+    return Number.isFinite(v) ? { date, value: v } : null;
+  }).filter(Boolean);
+}
+
+async function getFREDFedFundsCSV() {
+  const csvUrl = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=FEDFUNDS';
+  const url = maybeProxy(csvUrl);
+  if (!econCache[url]) econCache[url] = retryingFetch(url).then(r => r.text());
+  const text = await econCache[url];
+  const lines = text.trim().split(/\r?\n/);
+  const [header, ...rows] = lines;
+  if (!/^DATE,.*/.test(header)) throw Object.assign(new Error('Bad FRED CSV'), { url });
+  return rows.map(l => {
+    const [d, v] = l.split(',');
+    const n = parseFloat(v);
+    return { date: d, value: Number.isFinite(n) ? n : NaN };
+  });
+}
+
+function computeMonthlyAverage(rows, y, m) {
+  const prefix = `${y}-${String(m).padStart(2, '0')}`;
+  const filtered = rows.filter(r => r.date.startsWith(prefix) && Number.isFinite(r.value));
+  if (!filtered.length) return { date: `${prefix}-01`, value: NaN, count: 0 };
+  const avg = filtered.reduce((sum, r) => sum + r.value, 0) / filtered.length;
+  return { date: `${prefix}-01`, value: avg, count: filtered.length };
+}
+
+function downloadCSV(name, rows) {
+  const csv = ['metric,date,value,notes', ...rows.map(r => `${r.metric},${r.date},${r.value},${r.notes}`)].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function renderEconTable(rows) {
+  const hints = {
+    CPI_SA: 'CPI-U SA = headline consumer price index (seasonally adjusted)',
+    UNRATE: 'Unemployment rate (U-3) = % labor force',
+    Y10_AVG: '10Y yield = constant maturity par yield',
+    FEDFUNDS_AVG: 'Effective Fed Funds = daily rate averaged across the month.'
+  };
+  return /*#__PURE__*/React.createElement("div", { className: "mt-3 overflow-auto" }, /*#__PURE__*/
+    React.createElement("table", { className: "text-sm w-full" }, /*#__PURE__*/
+      React.createElement("tbody", null, rows.map(r => /*#__PURE__*/
+        React.createElement("tr", { key: r.metric, className: "border-t" }, /*#__PURE__*/
+          React.createElement("td", { className: "py-1 pr-2" }, r.label, ' ', /*#__PURE__*/React.createElement(InfoHint, { text: hints[r.metric] })), /*#__PURE__*/
+          React.createElement("td", { className: "py-1 text-right" }, Number.isFinite(r.value) ? r.value.toFixed(2) : 'N/A'))))), /*#__PURE__*/
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "All sources are keyless endpoints; some FRED CSV requests may require a CORS proxy. Data is for personal use; methods: monthly values from BLS; daily-to-month average for Treasury 10Y and EFFR.")
+  );
+}
+
 /* ----------------------- Micro UI ----------------------- */
 const Section = ({ title, right, children }) => /*#__PURE__*/
 React.createElement("section", { className: "card p-4 mb-4" }, /*#__PURE__*/
@@ -1507,7 +1615,7 @@ function Simulations({ scenarioDefaults }) {
 }
 
 /* ----------------------- Data panel (uses open ZIP + Census APIs) ----------------------- */
-function DataPanel({ onPlaceholders }) {
+function ZipDataPanel({ onPlaceholders }) {
   const [zip, setZip] = useLocalStorage('zip', '90210');
   const [area, setArea] = useState(null);
   const [home, setHome] = useState(null);
@@ -1567,7 +1675,156 @@ function DataPanel({ onPlaceholders }) {
         React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
         React.createElement("div", { className: "text-sm" }, status)), /*#__PURE__*/
 
-      React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
+  React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
+  );
+}
+
+function DataPanel({ onPlaceholders }) {
+  const [source, setSource] = useState('zip');
+  const [zip, setZip] = useLocalStorage('zip', '90210');
+  const [area, setArea] = useState(null);
+  const [home, setHome] = useState(null);
+  const [income, setIncome] = useState(null);
+  const [status, setStatus] = useState('');
+  const [econMonth, setEconMonth] = useState(new Date().getMonth() + 1);
+  const [econYear, setEconYear] = useState(new Date().getFullYear());
+  const [yearOpts, setYearOpts] = useState([]);
+  const [monthMap, setMonthMap] = useState({});
+  const [monthOpts, setMonthOpts] = useState([]);
+  const [econData, setEconData] = useState(null);
+  const [econError, setEconError] = useState('');
+  const [econWarn, setEconWarn] = useState('');
+  const [canFetch, setCanFetch] = useState(false);
+  const [loadingEcon, setLoadingEcon] = useState(false);
+  const [probed, setProbed] = useState(false);
+  const monthsNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  const refresh = async () => {
+    setStatus('Fetching…');
+    try {
+      const [loc, hv, inc] = await Promise.all([
+        fetchZip(zip).catch(_ => null),
+        fetchMedianHomeValueByZip(zip).catch(_ => null),
+        fetchMedianIncomeByZip(zip).catch(_ => null)
+      ]);
+      setArea(loc); setHome(hv); setIncome(inc);
+      const mortgageAPRPH = 6.5;
+      const loanAmountPH = hv && Number.isFinite(hv.value) ? hv.value * 0.8 : 350000;
+      onPlaceholders?.({ mortgageAPRPH, loanAmountPH, zip, area: loc, home: hv, income: inc, rates: {} });
+      setStatus('Updated ✅');
+    } catch (e) {
+      console.warn('Data load failed', e);
+      setStatus('Fetch failed. Check inputs or try again.');
+    }
+  };
+  useEffect(() => { refresh(); }, []);
+
+  const onSourceChange = async v => {
+    setSource(v);
+    if (v === 'econ' && !probed) {
+      try {
+        const [cpi, unrate] = await Promise.all([getBLS('CUSR0000SA0'), getBLS('LNS14000000')]);
+        blsSeries.cpi = cpi; blsSeries.unrate = unrate;
+        const years1 = Array.from(new Set(cpi.map(d => d.date.slice(0,4))));
+        const years2 = Array.from(new Set(unrate.map(d => d.date.slice(0,4))));
+        const years = years1.filter(y => years2.includes(y)).map(Number).filter(y => y <= new Date().getFullYear()).sort((a,b)=>a-b);
+        const mMap = {};
+        for (const y of years) {
+          const m1 = cpi.filter(d=>d.date.startsWith(`${y}-`)).map(d=>parseInt(d.date.slice(5,7)));
+          const m2 = unrate.filter(d=>d.date.startsWith(`${y}-`)).map(d=>parseInt(d.date.slice(5,7)));
+          mMap[y] = m1.filter(m=>m2.includes(m));
+        }
+        setYearOpts(years); setMonthMap(mMap);
+        const latestY = years[years.length-1];
+        setEconYear(latestY); setMonthOpts(mMap[latestY]);
+        const latestM = mMap[latestY][mMap[latestY].length-1];
+        setEconMonth(latestM);
+        await checkTreasury(latestY, latestM);
+        setProbed(true);
+      } catch (e) {
+        setEconError(`${e.message}${e.url ? ' ('+e.url+')' : ''}`);
+      }
+    }
+  };
+
+  const checkTreasury = async (y,m) => {
+    setEconWarn('');
+    try {
+      const rows = await getTreasury10Y(`${y}${String(m).padStart(2,'0')}`);
+      if (!rows.length) { setEconWarn('No Treasury 10Y data for that month.'); setCanFetch(false); }
+      else setCanFetch(true);
+    } catch { setCanFetch(true); }
+  };
+
+  const handleYearChange = async y => {
+    setEconYear(y);
+    const months = monthMap[y] || [];
+    setMonthOpts(months);
+    const m = months.includes(econMonth) ? econMonth : months[months.length-1];
+    setEconMonth(m);
+    await checkTreasury(y,m);
+  };
+  const handleMonthChange = async m => { setEconMonth(m); await checkTreasury(econYear,m); };
+
+  const fetchEcon = async () => {
+    setLoadingEcon(true); setEconError(''); setEconData(null);
+    const y = econYear, m = econMonth, mm = String(m).padStart(2,'0');
+    try {
+      const [treasuryRows, fredRows] = await Promise.all([ getTreasury10Y(`${y}${mm}`), getFREDFedFundsCSV() ]);
+      const cpi = blsSeries.cpi.find(d=>d.date.startsWith(`${y}-${mm}`));
+      const unrate = blsSeries.unrate.find(d=>d.date.startsWith(`${y}-${mm}`));
+      if (!treasuryRows.length) setEconWarn('No Treasury 10Y data for that month.');
+      const tAvg = computeMonthlyAverage(treasuryRows, y, m);
+      const fAvg = computeMonthlyAverage(fredRows, y, m);
+      const rows = [
+        { metric:'CPI_SA', label:'CPI-U (headline, SA) — BLS CUSR0000SA0', date:`${y}-${mm}-01`, value:cpi?cpi.value:NaN, notes:'BLS CUSR0000SA0' },
+        { metric:'UNRATE', label:'Unemployment rate (U-3) — BLS LNS14000000', date:`${y}-${mm}-01`, value:unrate?unrate.value:NaN, notes:'BLS LNS14000000' },
+        { metric:'Y10_AVG', label:'10-Year Treasury yield (avg) — Treasury Yield Curve XML (bc_10year)', date:`${y}-${mm}-01`, value:Number.isFinite(tAvg.value)?tAvg.value:NaN, notes:`Treasury bc_10year average of ${tAvg.count} days` },
+        { metric:'FEDFUNDS_AVG', label:'Effective Fed Funds (avg) — FRED CSV (FEDFUNDS)', date:`${y}-${mm}-01`, value:Number.isFinite(fAvg.value)?fAvg.value:NaN, notes:'FRED FEDFUNDS monthly avg from CSV' }
+      ];
+      setEconData({ rows });
+    } catch (e) {
+      setEconError(`${e.message}${e.url ? ' ('+e.url+')' : ''}`);
+    } finally { setLoadingEcon(false); }
+  };
+
+  const download = () => { if (econData) downloadCSV(`econ-${econYear}-${String(econMonth).padStart(2,'0')}.csv`, econData.rows); };
+
+  const zipUI = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+    React.createElement("div", { className: "grid md:grid-cols-2 gap-3" }, /*#__PURE__*/
+      React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+        React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" }), /*#__PURE__*/
+        React.createElement("a", { className: "text-xs underline block mt-1", href: "https://tools.usps.com/zip-code-lookup.htm", target: "_blank", rel: "noreferrer" }, "Find ZIP by city"))), /*#__PURE__*/
+      React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))), /*#__PURE__*/
+    React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+      React.createElement("div", { className: "result" }, /*#__PURE__*/
+        React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
+        React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '\u2014'), /*#__PURE__*/
+        React.createElement("div", { className: "text-xs text-slate-500" }, (home == null ? void 0 : home.name) || '')), /*#__PURE__*/
+      React.createElement("div", { className: "result" }, /*#__PURE__*/
+        React.createElement("div", { className: "text-xs text-slate-500" }, "Median household income (ACS, ZIP)"), /*#__PURE__*/
+        React.createElement("div", { className: "text-lg font-semibold" }, income && income.value ? money0(income.value) : '\u2014'), /*#__PURE__*/
+        React.createElement("div", { className: "text-xs text-slate-500" }, (income == null ? void 0 : income.name) || '')), /*#__PURE__*/
+      React.createElement("div", { className: "result" }, /*#__PURE__*/
+        React.createElement("div", { className: "text-xs text-slate-500" }, "Location"), /*#__PURE__*/
+        React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '\u2014'))), /*#__PURE__*/
+    React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
+      React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
+      React.createElement("div", { className: "text-sm" }, status)), /*#__PURE__*/
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."));
+
+  const econUI = /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+    React.createElement("div", { className: "flex flex-wrap gap-2" }, /*#__PURE__*/
+      React.createElement("select", { id: "econMonth", className: "field", value: econMonth, onChange: e => handleMonthChange(parseInt(e.target.value)) }, monthsNames.map((m,i)=> /*#__PURE__*/React.createElement("option", { key: i+1, value: i+1, disabled: monthOpts.length && !monthOpts.includes(i+1) }, m))), /*#__PURE__*/
+      React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => handleYearChange(parseInt(e.target.value)) }, yearOpts.map(y=> /*#__PURE__*/React.createElement("option", { key: y, value: y }, y))), /*#__PURE__*/
+      React.createElement("button", { className: "kbd", onClick: fetchEcon, disabled: !canFetch || loadingEcon }, loadingEcon ? 'Fetching…' : 'Fetch'), /*#__PURE__*/
+      React.createElement("button", { className: "kbd", onClick: download, disabled: !econData }, "Download CSV")), /*#__PURE__*/
+    econWarn && React.createElement("p", { className: "text-xs text-amber-600 mt-2" }, econWarn), /*#__PURE__*/
+    econError && React.createElement("p", { className: "text-xs text-rose-600 mt-2" }, econError, " If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL."), /*#__PURE__*/
+    econData && renderEconTable(econData.rows));
+
+  return /*#__PURE__*/(
+    React.createElement(Section, { title: "Data", right: /*#__PURE__*/React.createElement("label", { className: "text-sm flex items-center gap-1" }, /*#__PURE__*/React.createElement("span", null, "Data source"), /*#__PURE__*/React.createElement("select", { id: "dataSource", className: "field text-sm", value: source, onChange: e => onSourceChange(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "zip" }, "Zip code data"), /*#__PURE__*/React.createElement("option", { value: "econ" }, "Economic data"))) }, source === 'zip' ? zipUI : econUI)
   );
 }
 
