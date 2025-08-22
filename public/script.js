@@ -1911,14 +1911,14 @@ function DataPanel({ onPlaceholders }) {
           econError && /*#__PURE__*/React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
             `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
             "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL."),
-          econData && /*#__PURE__*/React.createElement(React.Fragment, null, renderEconTable(econData), /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")),
-          React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
-            React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-            React.createElement("div", { className: "text-sm" }, status))))
+            econData && /*#__PURE__*/React.createElement(React.Fragment, null, renderEconTable(econData), /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")),
+            React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
+              React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
+              React.createElement("div", { className: "text-sm" }, status)))),
 
-      React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
-  );
-}
+            React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh.")
+        ));
+  }
 
 /* --------------------------- Landing + Tabs --------------------------- */
 const TABS = [
