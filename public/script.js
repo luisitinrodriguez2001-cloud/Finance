@@ -196,6 +196,29 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 }
 
 /* ----------------------- Live data helpers (ZIP/Census) ----------------------- */
+const PROXY = '';
+function maybeProxy(url) {
+  return PROXY ? PROXY + url : url;
+}
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const id = setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms);
+    promise.then(v => {clearTimeout(id);resolve(v);}, e => {clearTimeout(id);reject(e);});
+  });
+}
+async function retryingFetch(url, opts = {}, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await withTimeout(fetch(url, opts), 12000);
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      const backoff = 500 * Math.pow(2, i) + Math.random() * 1000;
+      console.warn(`fetch failed for ${url} (attempt ${i + 1}):`, err);
+      await new Promise(r => setTimeout(r, backoff));
+    }
+  }
+}
+
 function useLocalStorage(key, initial) {
   const [val, setVal] = useState(() => {
     try {const v = localStorage.getItem(key);return v ? JSON.parse(v) : initial;} catch {return initial;}
@@ -230,6 +253,110 @@ async function fetchMedianIncomeByZip(zip) {
   const n = parseFloat(val);
   return Number.isFinite(n) ? { name, value: n } : null;
 }
+
+const BLS_CACHE = new Map();
+async function getBLS(seriesId) {
+  if (BLS_CACHE.has(seriesId)) return BLS_CACHE.get(seriesId);
+  const url = maybeProxy('https://api.bls.gov/publicAPI/v2/timeseries/data/');
+  let text = '';
+  try {
+    const resp = await retryingFetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seriesid: [seriesId] })
+    });
+    text = await resp.text();
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  } catch (err) {
+    throw new Error(`BLS request failed: ${err instanceof Error ? err.message : err}`);
+  }
+  let json;
+  try { json = JSON.parse(text); } catch (_) {
+    throw new Error(`BLS parse error: ${text.slice(0, 200)}`);
+  }
+  const series = json && json.Results && json.Results.series && json.Results.series[0] && json.Results.series[0].data;
+  if (!Array.isArray(series)) {
+    throw new Error(`Unexpected BLS schema: ${text.slice(0, 200)}`);
+  }
+  const out = series.map(d => {
+    const value = parseFloat(d.value);
+    const m = String((d.period || '').replace('M', '')).padStart(2, '0');
+    const date = `${d.year}-${m}-01`;
+    return { date, value };
+  }).filter(d => Number.isFinite(d.value));
+  BLS_CACHE.set(seriesId, out);
+  return out;
+}
+
+const TREASURY_10Y_CACHE = new Map();
+async function getTreasury10Y(yyyymm) {
+  if (TREASURY_10Y_CACHE.has(yyyymm)) return TREASURY_10Y_CACHE.get(yyyymm);
+  const y = yyyymm.slice(0, 4);
+  const m = yyyymm.slice(4, 6);
+  const start = `${y}-${m}-01`;
+  const end = m === '12' ? `${parseInt(y) + 1}-01-01` : `${y}-${String(parseInt(m) + 1).padStart(2, '0')}-01`;
+  const url = maybeProxy(`https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/daily_treasury_yield_curve?filter=record_date:ge:${start},record_date:lt:${end}&fields=record_date,bc_10year&sort=record_date`);
+  let text = '';
+  try {
+    const resp = await retryingFetch(url);
+    text = await resp.text();
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  } catch (err) {
+    throw new Error(`Treasury request failed: ${err instanceof Error ? err.message : err}`);
+  }
+  let json;
+  try { json = JSON.parse(text); } catch (_) {
+    throw new Error(`Treasury parse error: ${text.slice(0, 200)}`);
+  }
+  const arr = json && json.data;
+  if (!Array.isArray(arr)) {
+    throw new Error(`Unexpected Treasury schema: ${text.slice(0, 200)}`);
+  }
+  const vals = arr.map(r => parseFloat(r.bc_10year)).filter(Number.isFinite);
+  const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
+  TREASURY_10Y_CACHE.set(yyyymm, avg);
+  return avg;
+}
+
+let FRED_FF_CACHE = null;
+async function getFREDFedFundsCSV() {
+  if (FRED_FF_CACHE) return FRED_FF_CACHE;
+  const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFF';
+  let text = '';
+  try {
+    const resp = await retryingFetch(url);
+    text = await resp.text();
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  } catch (err) {
+    console.warn('Direct FRED fetch failed, retrying via proxy');
+    const resp2 = await retryingFetch(maybeProxy(url));
+    text = await resp2.text();
+    if (!resp2.ok) {
+      throw new Error(`FRED request failed: ${text.slice(0, 200)}`);
+    }
+  }
+  const lines = text.trim().split(/\r?\n/);
+  const header = lines.shift();
+  if (!header || header.indexOf('DATE') === -1) {
+    throw new Error(`Unexpected FRED CSV format: ${text.slice(0, 200)}`);
+  }
+  const map = new Map();
+  for (const line of lines) {
+    const [d, vStr] = line.split(',');
+    const v = parseFloat(vStr);
+    if (!Number.isFinite(v)) continue;
+    const [yy, mm] = d.split('-');
+    const key = `${yy}-${mm}-01`;
+    const entry = map.get(key) || { sum: 0, count: 0 };
+    entry.sum += v; entry.count++;
+    map.set(key, entry);
+  }
+  const res = Array.from(map.entries()).map(([date, { sum, count }]) => ({ date, value: sum / count }));
+  FRED_FF_CACHE = res;
+  return res;
+}
+
+Object.assign(window, { getBLS, getTreasury10Y, getFREDFedFundsCSV });
 
 /* ----------------------- Micro UI ----------------------- */
 const Section = ({ title, right, children }) => /*#__PURE__*/
@@ -1605,7 +1732,7 @@ function DataPanel({ onPlaceholders }) {
               React.createElement("button", { className: "kbd opacity-50 cursor-not-allowed", disabled: true }, "Download CSV"))), /*#__PURE__*/
           React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
             React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-            React.createElement("div", { className: "text-sm" }, status))))), /*#__PURE__*/
+            React.createElement("div", { className: "text-sm" }, status)))), /*#__PURE__*/
 
       React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
   );
