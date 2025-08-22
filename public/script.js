@@ -1732,7 +1732,7 @@ function DataPanel({ onPlaceholders }) {
               React.createElement("button", { className: "kbd opacity-50 cursor-not-allowed", disabled: true }, "Download CSV"))), /*#__PURE__*/
           React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
             React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-            React.createElement("div", { className: "text-sm" }, status))))), /*#__PURE__*/
+            React.createElement("div", { className: "text-sm" }, status)))), /*#__PURE__*/
 
       React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
   );
