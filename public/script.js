@@ -1809,6 +1809,18 @@ function DataPanel() {
   );
 }
 
+/* ----------------------- Fun facts ----------------------- */
+const FUN_FACTS = {
+  home: [
+    'The Bureau of Labor Statistics publishes CPI data every month.',
+    'FRED provides access to hundreds of thousands of economic time series.'
+  ],
+  data: [
+    'Treasury Fiscal Data offers an API for detailed government financial statistics.',
+    'BLS, FRED and Treasury APIs power many economic visualizations.'
+  ]
+};
+
 function FunFacts({ topic }) {
   const facts = useMemo(() => {
     if (topic === 'home') return Object.values(FUN_FACTS).flat();
