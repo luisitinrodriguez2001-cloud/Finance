@@ -4,6 +4,7 @@
 */
 import { PROXY } from './config.js';
 import { proxiedFetch } from './lib/proxy.js';
+import { blsFetchSingle, blsFetchMany } from './lib/bls.js';
 // Simulation defaults used across calculators. Previously these values were
 // imported from "sim/horizonDefaults.js" using an ES module import, but the
 // additional module loader caused the app to render a blank page when the
@@ -291,42 +292,41 @@ async function fetchMedianIncomeByZip(zip) {
   return Number.isFinite(n) ? { name, value: n } : null;
 }
 
-const BLS_CACHE = new Map();
-async function getBLS(seriesId) {
-  if (BLS_CACHE.has(seriesId)) return BLS_CACHE.get(seriesId);
-  const url = 'https://api.bls.gov/publicAPI/v2/timeseries/data/';
-  let text = '';
-  try {
-    const resp = await retryingFetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seriesid: [seriesId] })
-    }, 3, 'data/econ');
-    text = await resp.text();
-  } catch (err) {
-    const e = new Error(`BLS request failed: ${err instanceof Error ? err.message : err}`);
-    e.url = err.url || url;
+function parseBlsSeries(arr) {
+  return arr.map(d => {
+    const value = parseFloat(d.value);
+    const m = String(String(d.period || '').replace('M', '')).padStart(2, '0');
+    const date = `${d.year}-${m}-01`;
+    return { date, value };
+  }).filter(d => Number.isFinite(d.value));
+}
+
+async function fetchBLSMany(seriesIds, opts) {
+  const resp = await blsFetchMany(seriesIds, opts);
+  const text = await resp.text();
+  if (!resp.ok) {
+    const e = new Error(`BLS request failed: ${resp.status}`);
+    e.url = resp.url;
     throw e;
   }
   let json;
   try { json = JSON.parse(text); } catch (_) {
     const e = new Error(`BLS parse error: ${text.slice(0, 200)}`);
-    e.url = url;
+    e.url = resp.url;
     throw e;
   }
-  const series = json && json.Results && json.Results.series && json.Results.series[0] && json.Results.series[0].data;
-  if (!Array.isArray(series)) {
+  const seriesArr = json?.Results?.series;
+  if (!Array.isArray(seriesArr)) {
     const e = new Error(`Unexpected BLS schema: ${text.slice(0, 200)}`);
-    e.url = url;
+    e.url = resp.url;
     throw e;
   }
-  const out = series.map(d => {
-    const value = parseFloat(d.value);
-    const m = String((d.period || '').replace('M', '')).padStart(2, '0');
-    const date = `${d.year}-${m}-01`;
-    return { date, value };
-  }).filter(d => Number.isFinite(d.value));
-  BLS_CACHE.set(seriesId, out);
+  const out = new Map();
+  for (const s of seriesArr) {
+    if (s && s.seriesID && Array.isArray(s.data)) {
+      out.set(s.seriesID, parseBlsSeries(s.data));
+    }
+  }
   return out;
 }
 
@@ -407,7 +407,7 @@ async function getFREDFedFundsCSV() {
   return res;
 }
 
-Object.assign(window, { getBLS, getTreasury10Y, getFREDFedFundsCSV });
+Object.assign(window, { getTreasury10Y, getFREDFedFundsCSV });
 
 /* ----------------------- Micro UI ----------------------- */
 const Section = ({ title, right, children }) => /*#__PURE__*/
@@ -1756,13 +1756,13 @@ function DataPanel({ onPlaceholders }) {
       const yy = String(econYear);
       const yyyymm = yy + mm;
       const dateKey = `${yy}-${mm}-01`;
-      const [cpiSeries, unrateSeries, tsy10, ffSeries] = await Promise.all([
-        // Use seasonally adjusted CPI-U series to match other economic helpers
-        getBLS('CUSR0000SA0'),
-        getBLS('LNS14000000'),
+      const [seriesMap, tsy10, ffSeries] = await Promise.all([
+        fetchBLSMany(['CUSR0000SA0', 'LNS14000000'], { startyear: yy, endyear: yy }),
         getTreasury10Y(yyyymm),
         getFREDFedFundsCSV()
       ]);
+      const cpiSeries = seriesMap.get('CUSR0000SA0') || [];
+      const unrateSeries = seriesMap.get('LNS14000000') || [];
       const cpi = cpiSeries.find(d => d.date === dateKey)?.value;
       const unrate = unrateSeries.find(d => d.date === dateKey)?.value;
       const fedFunds = ffSeries.find(d => d.date === dateKey)?.value;
@@ -1792,9 +1792,13 @@ function DataPanel({ onPlaceholders }) {
   const populateYearOptions = async () => {
     try {
       const getBLSRange = async id => {
-        const url = `https://api.bls.gov/publicAPI/v2/timeseries/data/${id}?catalog=true&latest=1`;
-        const resp = await retryingFetch(url, {}, 3, 'data/econ');
+        const resp = await blsFetchSingle(id, { catalog: true, latest: 1 });
         const text = await resp.text();
+        if (!resp.ok) {
+          const err = new Error(`BLS request failed: ${resp.status}`);
+          err.url = resp.url;
+          throw err;
+        }
         const json = JSON.parse(text);
         const cat = json?.Results?.series?.[0]?.catalog;
         const start = parseInt(cat?.startyear || cat?.begin_year || cat?.beginyear, 10);
@@ -1842,11 +1846,12 @@ function DataPanel({ onPlaceholders }) {
     const mm = String(m).padStart(2, '0');
     const yy = String(y);
     try {
-      const [cpi, unrate, tsy] = await Promise.all([
-        getBLS('CUSR0000SA0'),
-        getBLS('LNS14000000'),
+      const [seriesMap, tsy] = await Promise.all([
+        fetchBLSMany(['CUSR0000SA0', 'LNS14000000'], { startyear: yy, endyear: yy }),
         getTreasury10Y(yy + mm)
       ]);
+      const cpi = seriesMap.get('CUSR0000SA0') || [];
+      const unrate = seriesMap.get('LNS14000000') || [];
       const dateKey = `${yy}-${mm}-01`;
       const ok = cpi.some(d => d.date === dateKey) &&
         unrate.some(d => d.date === dateKey) &&
