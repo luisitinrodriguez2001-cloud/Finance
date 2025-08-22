@@ -11,9 +11,9 @@ app.locals.investorProfile = INVESTOR_PROFILE;
 // and modules imported from `/sim` returned 404s in the browser. React would
 // then fail to load and the page rendered blank. Expose those directories so
 // the client can fetch them.
-app.use('/public', express.static(path.join(__dirname, 'public')));
-app.use('/components', express.static(path.join(__dirname, 'components')));
-app.use('/sim', express.static(path.join(__dirname, 'sim')));
+['public', 'components', 'sim'].forEach(dir => {
+  app.use(`/${dir}`, express.static(path.join(__dirname, dir)));
+});
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
