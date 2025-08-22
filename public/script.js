@@ -1644,6 +1644,8 @@ function DataPanel({ onPlaceholders }) {
   const now = new Date();
   const [econMonth, setEconMonth] = useState(String(now.getMonth() + 1));
   const [econYear, setEconYear] = useState(String(now.getFullYear()));
+  const [econYearOpts, setEconYearOpts] = useState([String(now.getFullYear())]);
+  const [econWarning, setEconWarning] = useState('');
 
   const refresh = async () => {
     setStatus('Fetching…');
@@ -1679,10 +1681,81 @@ function DataPanel({ onPlaceholders }) {
     }
   };
 
+  const populateYearOptions = async () => {
+    try {
+      const getBLSRange = async id => {
+        const url = maybeProxy(`https://api.bls.gov/publicAPI/v2/timeseries/data/${id}?catalog=true&latest=1`);
+        const resp = await retryingFetch(url);
+        const text = await resp.text();
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const json = JSON.parse(text);
+        const cat = json?.Results?.series?.[0]?.catalog;
+        const start = parseInt(cat?.startyear || cat?.begin_year || cat?.beginyear, 10);
+        const end = parseInt(cat?.endyear || cat?.end_year, 10);
+        return { min: start, max: end };
+      };
+      const getTreasuryRange = async () => {
+        const base = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?format=xml&fields=record_date&sort=';
+        const fetchYear = async sort => {
+          const url = maybeProxy(`${base}${sort}&page[number]=1&page[size]=1`);
+          const resp = await retryingFetch(url);
+          const text = await resp.text();
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const m = text.match(/<record_date>(\d{4})-\d{2}-\d{2}<\/record_date>/i);
+          if (!m) throw new Error('record_date not found');
+          return parseInt(m[1], 10);
+        };
+        const min = await fetchYear('record_date');
+        const max = await fetchYear('-record_date');
+        return { min, max };
+      };
+      const [cpi, unrate, tsy] = await Promise.all([
+        getBLSRange('CUSR0000SA0'),
+        getBLSRange('LNS14000000'),
+        getTreasuryRange()
+      ]);
+      const thisYear = now.getFullYear();
+      const minYear = Math.max(cpi.min, unrate.min, tsy.min);
+      const maxYear = Math.min(cpi.max, unrate.max, tsy.max, thisYear);
+      const years = [];
+      for (let y = maxYear; y >= minYear; y--) years.push(String(y));
+      setEconYearOpts(years);
+      const newYear = years.includes(econYear) ? econYear : years[0];
+      if (newYear) setEconYear(newYear);
+      await onMonthYearChange(econMonth, newYear || econYear);
+    } catch (err) {
+      console.warn('Year options load failed', err);
+      const y = String(now.getFullYear());
+      setEconYearOpts([y]);
+      setEconYear(y);
+    }
+  };
+
+  const onMonthYearChange = async (m, y) => {
+    const mm = String(m).padStart(2, '0');
+    const yy = String(y);
+    try {
+      const [cpi, unrate, tsy] = await Promise.all([
+        getBLS('CUSR0000SA0'),
+        getBLS('LNS14000000'),
+        getTreasury10Y(yy + mm)
+      ]);
+      const dateKey = `${yy}-${mm}-01`;
+      const ok = cpi.some(d => d.date === dateKey) &&
+        unrate.some(d => d.date === dateKey) &&
+        Number.isFinite(tsy);
+      setEconWarning(ok ? '' : 'Data not available for this month.');
+    } catch (err) {
+      console.warn('Availability check failed', err);
+      setEconWarning('Data check failed.');
+    }
+  };
+
   useEffect(() => { refresh(); }, []);
+  useEffect(() => { if (dataSource === 'econ') populateYearOptions(); }, [dataSource]);
 
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const yearOpts = Array.from({ length: 10 }, (_, i) => String(now.getFullYear() - i));
+  // year options populated dynamically
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Data (live placeholders)" }, /*#__PURE__*/
@@ -1722,14 +1795,15 @@ function DataPanel({ onPlaceholders }) {
         React.createElement(React.Fragment, null, /*#__PURE__*/
           React.createElement("div", { className: "flex flex-wrap gap-3 items-end mt-3" }, /*#__PURE__*/
             React.createElement(Field, { label: "Month" }, /*#__PURE__*/
-              React.createElement("select", { id: "econMonth", className: "field", value: econMonth, onChange: e => setEconMonth(e.target.value) },
+              React.createElement("select", { id: "econMonth", className: "field", value: econMonth, onChange: e => { const m = e.target.value; setEconMonth(m); onMonthYearChange(m, econYear); } },
                 monthNames.map((m, i) => /*#__PURE__*/React.createElement("option", { key: m, value: String(i + 1) }, m)))), /*#__PURE__*/
             React.createElement(Field, { label: "Year" }, /*#__PURE__*/
-              React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => setEconYear(e.target.value) },
-                yearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))), /*#__PURE__*/
+              React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => { const y = e.target.value; setEconYear(y); onMonthYearChange(econMonth, y); } },
+                econYearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))), /*#__PURE__*/
             React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
-              React.createElement("button", { className: "kbd", onClick: fetchEcon }, "Fetch"), /*#__PURE__*/
-              React.createElement("button", { className: "kbd opacity-50 cursor-not-allowed", disabled: true }, "Download CSV"))), /*#__PURE__*/
+              React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"), /*#__PURE__*/
+              React.createElement("button", { className: "kbd opacity-50 cursor-not-allowed", disabled: true }, "Download CSV"))),
+          econWarning && /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning), /*#__PURE__*/
           React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
             React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
             React.createElement("div", { className: "text-sm" }, status)))), /*#__PURE__*/
