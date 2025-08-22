@@ -196,6 +196,16 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 }
 
 /* ----------------------- Live data helpers (ZIP/Census) ----------------------- */
+// Optional proxy for CORS-restricted endpoints. Set to your Cloudflare Worker URL
+// to forward requests (e.g., 'https://your-worker.example.com/').
+//
+// Cloudflare Worker snippet:
+// export default {
+//   async fetch(req) {
+//     const url = new URL(req.url);
+//     return fetch(url, req);
+//   }
+// };
 const PROXY = '';
 function maybeProxy(url) {
   return PROXY ? PROXY + url : url;
@@ -206,14 +216,23 @@ function withTimeout(promise, ms) {
     promise.then(v => {clearTimeout(id);resolve(v);}, e => {clearTimeout(id);reject(e);});
   });
 }
-async function retryingFetch(url, opts = {}, retries = 3) {
-  for (let i = 0; i < retries; i++) {
+async function retryingFetch(url, opts = {}, retries = 3, tag = 'fetch') {
+  for (let i = 1; i <= retries; i++) {
     try {
-      return await withTimeout(fetch(url, opts), 12000);
+      const resp = await withTimeout(fetch(url, opts), 12000);
+      if (!resp.ok) {
+        const err = new Error(`HTTP ${resp.status}`);
+        err.url = url;
+        throw err;
+      }
+      return resp;
     } catch (err) {
-      if (i === retries - 1) throw err;
-      const backoff = 500 * Math.pow(2, i) + Math.random() * 1000;
-      console.warn(`fetch failed for ${url} (attempt ${i + 1}):`, err);
+      const msg = err instanceof Error ? err.message : err;
+      console.warn(`[${tag}] attempt ${i} failed: ${msg}`);
+      if (i === retries) {
+        throw Object.assign(err instanceof Error ? err : new Error(String(err)), { url });
+      }
+      const backoff = 500 * Math.pow(2, i - 1) + Math.random() * 1000;
       await new Promise(r => setTimeout(r, backoff));
     }
   }
@@ -264,19 +283,24 @@ async function getBLS(seriesId) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ seriesid: [seriesId] })
-    });
+    }, 3, 'data/econ');
     text = await resp.text();
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (err) {
-    throw new Error(`BLS request failed: ${err instanceof Error ? err.message : err}`);
+    const e = new Error(`BLS request failed: ${err instanceof Error ? err.message : err}`);
+    e.url = err.url || url;
+    throw e;
   }
   let json;
   try { json = JSON.parse(text); } catch (_) {
-    throw new Error(`BLS parse error: ${text.slice(0, 200)}`);
+    const e = new Error(`BLS parse error: ${text.slice(0, 200)}`);
+    e.url = url;
+    throw e;
   }
   const series = json && json.Results && json.Results.series && json.Results.series[0] && json.Results.series[0].data;
   if (!Array.isArray(series)) {
-    throw new Error(`Unexpected BLS schema: ${text.slice(0, 200)}`);
+    const e = new Error(`Unexpected BLS schema: ${text.slice(0, 200)}`);
+    e.url = url;
+    throw e;
   }
   const out = series.map(d => {
     const value = parseFloat(d.value);
@@ -298,19 +322,24 @@ async function getTreasury10Y(yyyymm) {
   const url = maybeProxy(`https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/daily_treasury_yield_curve?filter=record_date:ge:${start},record_date:lt:${end}&fields=record_date,bc_10year&sort=record_date`);
   let text = '';
   try {
-    const resp = await retryingFetch(url);
+    const resp = await retryingFetch(url, {}, 3, 'data/econ');
     text = await resp.text();
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (err) {
-    throw new Error(`Treasury request failed: ${err instanceof Error ? err.message : err}`);
+    const e = new Error(`Treasury request failed: ${err instanceof Error ? err.message : err}`);
+    e.url = err.url || url;
+    throw e;
   }
   let json;
   try { json = JSON.parse(text); } catch (_) {
-    throw new Error(`Treasury parse error: ${text.slice(0, 200)}`);
+    const e = new Error(`Treasury parse error: ${text.slice(0, 200)}`);
+    e.url = url;
+    throw e;
   }
   const arr = json && json.data;
   if (!Array.isArray(arr)) {
-    throw new Error(`Unexpected Treasury schema: ${text.slice(0, 200)}`);
+    const e = new Error(`Unexpected Treasury schema: ${text.slice(0, 200)}`);
+    e.url = url;
+    throw e;
   }
   const vals = arr.map(r => parseFloat(r.bc_10year)).filter(Number.isFinite);
   const avg = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : NaN;
@@ -322,23 +351,22 @@ let FRED_FF_CACHE = null;
 async function getFREDFedFundsCSV() {
   if (FRED_FF_CACHE) return FRED_FF_CACHE;
   const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFF';
-  let text = '';
+  let text = '', fetchUrl = url;
   try {
-    const resp = await retryingFetch(url);
+    const resp = await retryingFetch(url, {}, 3, 'data/econ');
     text = await resp.text();
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   } catch (err) {
     console.warn('Direct FRED fetch failed, retrying via proxy');
-    const resp2 = await retryingFetch(maybeProxy(url));
+    fetchUrl = maybeProxy(url);
+    const resp2 = await retryingFetch(fetchUrl, {}, 3, 'data/econ');
     text = await resp2.text();
-    if (!resp2.ok) {
-      throw new Error(`FRED request failed: ${text.slice(0, 200)}`);
-    }
   }
   const lines = text.trim().split(/\r?\n/);
   const header = lines.shift();
   if (!header || header.indexOf('DATE') === -1) {
-    throw new Error(`Unexpected FRED CSV format: ${text.slice(0, 200)}`);
+    const e = new Error(`Unexpected FRED CSV format: ${text.slice(0, 200)}`);
+    e.url = fetchUrl;
+    throw e;
   }
   const map = new Map();
   for (const line of lines) {
@@ -1671,6 +1699,7 @@ function DataPanel({ onPlaceholders }) {
   const [econYear, setEconYear] = useState(String(now.getFullYear()));
   const [econYearOpts, setEconYearOpts] = useState([String(now.getFullYear())]);
   const [econWarning, setEconWarning] = useState('');
+  const [econError, setEconError] = useState(null);
   const [econData, setEconData] = useState(null);
 
   const refresh = async () => {
@@ -1698,6 +1727,7 @@ function DataPanel({ onPlaceholders }) {
 
   const fetchEcon = async () => {
     setStatus('Fetching…');
+    setEconError(null);
     try {
       const mm = String(econMonth).padStart(2, '0');
       const yy = String(econYear);
@@ -1718,6 +1748,7 @@ function DataPanel({ onPlaceholders }) {
       setStatus('Updated ✅');
     } catch (e) {
       console.warn('Economic data load failed', e);
+      setEconError(e);
       setStatus('Fetch failed. Check inputs or try again.');
     }
   };
@@ -1738,9 +1769,8 @@ function DataPanel({ onPlaceholders }) {
     try {
       const getBLSRange = async id => {
         const url = maybeProxy(`https://api.bls.gov/publicAPI/v2/timeseries/data/${id}?catalog=true&latest=1`);
-        const resp = await retryingFetch(url);
+        const resp = await retryingFetch(url, {}, 3, 'data/econ');
         const text = await resp.text();
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const json = JSON.parse(text);
         const cat = json?.Results?.series?.[0]?.catalog;
         const start = parseInt(cat?.startyear || cat?.begin_year || cat?.beginyear, 10);
@@ -1751,9 +1781,8 @@ function DataPanel({ onPlaceholders }) {
         const base = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?format=xml&fields=record_date&sort=';
         const fetchYear = async sort => {
           const url = maybeProxy(`${base}${sort}&page[number]=1&page[size]=1`);
-          const resp = await retryingFetch(url);
+          const resp = await retryingFetch(url, {}, 3, 'data/econ');
           const text = await resp.text();
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
           const m = text.match(/<record_date>(\d{4})-\d{2}-\d{2}<\/record_date>/i);
           if (!m) throw new Error('record_date not found');
           return parseInt(m[1], 10);
@@ -1857,6 +1886,9 @@ function DataPanel({ onPlaceholders }) {
                 React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"), /*#__PURE__*/
                 React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}` , onClick: downloadEconCSV, disabled: !econData }, "Download CSV")),
           econWarning && /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
+          econError && /*#__PURE__*/React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
+            `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
+            "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL."),
           econData && /*#__PURE__*/React.createElement(React.Fragment, null, renderEconTable(econData), /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")),
           React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
             React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
