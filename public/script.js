@@ -2,6 +2,8 @@
    Tweaks in this version:
    - Debt Payoff: extra placeholder = $0; "+ Add debt" moved under list.
 */
+import { PROXY } from './config.js';
+import { proxiedFetch } from './lib/proxy.js';
 // Simulation defaults used across calculators. Previously these values were
 // imported from "sim/horizonDefaults.js" using an ES module import, but the
 // additional module loader caused the app to render a blank page when the
@@ -207,11 +209,6 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
 //     return fetch(url, req);
 //   }
 // };
-const PROXY = 'https://autumn-dew-1295.luisitinrodriguez2001.workers.dev/cors/?url=';
-function maybeProxy(url) {
-  return PROXY ? PROXY + encodeURIComponent(url) : url;
-}
-
 // Simple cache of in-flight and completed fetches by URL
 const FETCH_CACHE = {};
 function clearFetchCache() {
@@ -231,7 +228,7 @@ async function retryingFetch(url, opts = {}, retries = 3, tag = 'fetch') {
   const attempt = (async () => {
     for (let i = 1; i <= retries; i++) {
       try {
-        const resp = await withTimeout(fetch(url, opts), 12000);
+        const resp = await withTimeout(proxiedFetch(url, opts), 12000);
         if (!resp.ok) {
           const err = new Error(`HTTP ${resp.status}`);
           err.url = url;
@@ -297,7 +294,7 @@ async function fetchMedianIncomeByZip(zip) {
 const BLS_CACHE = new Map();
 async function getBLS(seriesId) {
   if (BLS_CACHE.has(seriesId)) return BLS_CACHE.get(seriesId);
-  const url = maybeProxy('https://api.bls.gov/publicAPI/v2/timeseries/data/');
+  const url = 'https://api.bls.gov/publicAPI/v2/timeseries/data/';
   let text = '';
   try {
     const resp = await retryingFetch(url, {
@@ -340,7 +337,7 @@ async function getTreasury10Y(yyyymm) {
   const m = yyyymm.slice(4, 6);
   const start = `${y}-${m}-01`;
   const end = m === '12' ? `${parseInt(y) + 1}-01-01` : `${y}-${String(parseInt(m) + 1).padStart(2, '0')}-01`;
-  const url = maybeProxy(`https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/daily_treasury_yield_curve?filter=record_date:ge:${start},record_date:lt:${end}&fields=record_date,bc_10year&sort=record_date`);
+  const url = `https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/daily_treasury_yield_curve?filter=record_date:ge:${start},record_date:lt:${end}&fields=record_date,bc_10year&sort=record_date`;
   let text = '';
   try {
     const resp = await retryingFetch(url, {}, 3, 'data/econ');
@@ -374,12 +371,17 @@ async function getFREDFedFundsCSV() {
   const url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFF';
   let text = '', fetchUrl = url;
   try {
-    const resp = await retryingFetch(url, {}, 3, 'data/econ');
+    const resp = await withTimeout(fetch(url), 12000);
+    if (!resp.ok) {
+      const err = new Error(`HTTP ${resp.status}`);
+      err.url = url;
+      throw err;
+    }
     text = await resp.text();
   } catch (err) {
     console.warn('Direct FRED fetch failed, retrying via proxy');
-    fetchUrl = maybeProxy(url);
-    const resp2 = await retryingFetch(fetchUrl, {}, 3, 'data/econ');
+    fetchUrl = PROXY + encodeURIComponent(url);
+    const resp2 = await retryingFetch(url, {}, 3, 'data/econ');
     text = await resp2.text();
   }
   const lines = text.trim().split(/\r?\n/);
@@ -1790,7 +1792,7 @@ function DataPanel({ onPlaceholders }) {
   const populateYearOptions = async () => {
     try {
       const getBLSRange = async id => {
-        const url = maybeProxy(`https://api.bls.gov/publicAPI/v2/timeseries/data/${id}?catalog=true&latest=1`);
+        const url = `https://api.bls.gov/publicAPI/v2/timeseries/data/${id}?catalog=true&latest=1`;
         const resp = await retryingFetch(url, {}, 3, 'data/econ');
         const text = await resp.text();
         const json = JSON.parse(text);
@@ -1802,7 +1804,7 @@ function DataPanel({ onPlaceholders }) {
       const getTreasuryRange = async () => {
         const base = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v2/accounting/od/avg_interest_rates?format=xml&fields=record_date&sort=';
         const fetchYear = async sort => {
-          const url = maybeProxy(`${base}${sort}&page[number]=1&page[size]=1`);
+          const url = `${base}${sort}&page[number]=1&page[size]=1`;
           const resp = await retryingFetch(url, {}, 3, 'data/econ');
           const text = await resp.text();
           const m = text.match(/<record_date>(\d{4})-\d{2}-\d{2}<\/record_date>/i);
