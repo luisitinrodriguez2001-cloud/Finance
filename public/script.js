@@ -1868,55 +1868,65 @@ function DataPanel({ onPlaceholders }) {
           React.createElement("option", { value: "zip" }, "Zip code data"), /*#__PURE__*/
           React.createElement("option", { value: "econ" }, "Economic data"))), /*#__PURE__*/
 
-      dataSource === 'zip' ? /*#__PURE__*/(
-        React.createElement(React.Fragment, null, /*#__PURE__*/
-          React.createElement("div", { className: "grid md:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
-            React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
-              React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" }), /*#__PURE__*/
-              React.createElement("a", { className: "text-xs underline block mt-1", href: "https://tools.usps.com/zip-code-lookup.htm", target: "_blank", rel: "noreferrer" }, "Find ZIP by city"))), /*#__PURE__*/
-            React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
-              React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))), /*#__PURE__*/
+        dataSource === 'zip'
+          ? /*#__PURE__*/(
+              React.createElement(React.Fragment, null, /*#__PURE__*/
+                React.createElement("div", { className: "grid md:grid-cols-2 gap-3 mt-3" }, /*#__PURE__*/
+                  React.createElement(Field, { label: "ZIP (for home value)" }, /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/
+                    React.createElement("input", { className: "field", value: zip, onChange: e => setZip(e.target.value), placeholder: "90210" }), /*#__PURE__*/
+                    React.createElement("a", { className: "text-xs underline block mt-1", href: "https://tools.usps.com/zip-code-lookup.htm", target: "_blank", rel: "noreferrer" }, "Find ZIP by city"))), /*#__PURE__*/
+                  React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
+                    React.createElement("button", { className: "kbd", onClick: refresh }, "Refresh"))), /*#__PURE__*/
 
-          React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
-            React.createElement("div", { className: "result" }, /*#__PURE__*/
-              React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
-              React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '—'), /*#__PURE__*/
-              React.createElement("div", { className: "text-xs text-slate-500" }, (home == null ? void 0 : home.name) || '')), /*#__PURE__*/
+                React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+                  React.createElement("div", { className: "result" }, /*#__PURE__*/
+                    React.createElement("div", { className: "text-xs text-slate-500" }, "Median home value (ACS, ZIP)"), /*#__PURE__*/
+                    React.createElement("div", { className: "text-lg font-semibold" }, home && home.value ? money0(home.value) : '—'), /*#__PURE__*/
+                    React.createElement("div", { className: "text-xs text-slate-500" }, (home == null ? void 0 : home.name) || '')), /*#__PURE__*/
 
-            React.createElement("div", { className: "result" }, /*#__PURE__*/
-              React.createElement("div", { className: "text-xs text-slate-500" }, "Median household income (ACS, ZIP)"), /*#__PURE__*/
-              React.createElement("div", { className: "text-lg font-semibold" }, income && income.value ? money0(income.value) : '—'), /*#__PURE__*/
-              React.createElement("div", { className: "text-xs text-slate-500" }, (income == null ? void 0 : income.name) || '')), /*#__PURE__*/
+                  React.createElement("div", { className: "result" }, /*#__PURE__*/
+                    React.createElement("div", { className: "text-xs text-slate-500" }, "Median household income (ACS, ZIP)"), /*#__PURE__*/
+                    React.createElement("div", { className: "text-lg font-semibold" }, income && income.value ? money0(income.value) : '—'), /*#__PURE__*/
+                    React.createElement("div", { className: "text-xs text-slate-500" }, (income == null ? void 0 : income.name) || '')), /*#__PURE__*/
 
-            React.createElement("div", { className: "result" }, /*#__PURE__*/
-              React.createElement("div", { className: "text-xs text-slate-500" }, "Location"), /*#__PURE__*/
-              React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '—'))), /*#__PURE__*/
+                  React.createElement("div", { className: "result" }, /*#__PURE__*/
+                    React.createElement("div", { className: "text-xs text-slate-500" }, "Location"), /*#__PURE__*/
+                    React.createElement("div", { className: "text-lg font-semibold" }, area ? `${area.city}, ${area.state}` : '—'))), /*#__PURE__*/
 
-          React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
-            React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-            React.createElement("div", { className: "text-sm" }, status))))
-        : /*#__PURE__*/(
-        React.createElement(React.Fragment, null, /*#__PURE__*/
-          React.createElement("div", { className: "flex flex-wrap gap-3 items-end mt-3" }, /*#__PURE__*/
-            React.createElement(Field, { label: "Month" }, /*#__PURE__*/
-              React.createElement("select", { id: "econMonth", className: "field", value: econMonth, onChange: e => { const m = e.target.value; setEconMonth(m); onMonthYearChange(m, econYear); } },
-                monthNames.map((m, i) => /*#__PURE__*/React.createElement("option", { key: m, value: String(i + 1) }, m)))), /*#__PURE__*/
-            React.createElement(Field, { label: "Year" }, /*#__PURE__*/
-              React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => { const y = e.target.value; setEconYear(y); onMonthYearChange(econMonth, y); } },
-                econYearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))), /*#__PURE__*/
-            React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
-                React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"), /*#__PURE__*/
-                React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}` , onClick: downloadEconCSV, disabled: !econData }, "Download CSV")),
-          econWarning && /*#__PURE__*/React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
-          econError && /*#__PURE__*/React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
-            `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
-            "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL."),
-            econData && /*#__PURE__*/React.createElement(React.Fragment, null, renderEconTable(econData), /*#__PURE__*/React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")),
-            React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
-              React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-              React.createElement("div", { className: "text-sm" }, status)))),
-
-            React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh.")
+                React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
+                  React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
+                  React.createElement("div", { className: "text-sm" }, status))
+              )
+            )
+          : /*#__PURE__*/(
+              React.createElement(React.Fragment, null,
+                React.createElement("div", { className: "flex flex-wrap gap-3 items-end mt-3" },
+                  React.createElement(Field, { label: "Month" },
+                    React.createElement("select", { id: "econMonth", className: "field", value: econMonth, onChange: e => { const m = e.target.value; setEconMonth(m); onMonthYearChange(m, econYear); } },
+                      monthNames.map((m, i) => /*#__PURE__*/React.createElement("option", { key: m, value: String(i + 1) }, m)))),
+                  React.createElement(Field, { label: "Year" },
+                    React.createElement("select", { id: "econYear", className: "field", value: econYear, onChange: e => { const y = e.target.value; setEconYear(y); onMonthYearChange(econMonth, y); } },
+                      econYearOpts.map(y => /*#__PURE__*/React.createElement("option", { key: y, value: y }, y)))),
+                  React.createElement("div", { className: "flex items-end gap-2" },
+                    React.createElement("button", { className: `kbd${econWarning ? ' opacity-50 cursor-not-allowed' : ''}`, onClick: fetchEcon, disabled: !!econWarning }, "Fetch"),
+                    React.createElement("button", { className: `kbd${econData ? '' : ' opacity-50 cursor-not-allowed'}`, onClick: downloadEconCSV, disabled: !econData }, "Download CSV")
+                  )
+                ),
+                econWarning && React.createElement("p", { className: "text-xs text-red-600 mt-2" }, econWarning),
+                econError && React.createElement("div", { className: "mt-2 p-2 border border-red-300 bg-red-50 text-xs text-red-700 break-all" },
+                  `Failed to fetch ${econError.url || 'resource'}.`, /*#__PURE__*/React.createElement("br", null),
+                  "If this is a CORS error for FRED CSV, set PROXY to your Cloudflare Worker URL."),
+                econData && React.createElement(React.Fragment, null,
+                  renderEconTable(econData),
+                  React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "All sources are keyless endpoints…")
+                ),
+                React.createElement("div", { className: "result mt-3" },
+                  React.createElement("div", { className: "text-xs text-slate-500" }, "Status"),
+                  React.createElement("div", { className: "text-sm" }, status)
+                ),
+                React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh." )
+              )
+            )
         ));
   }
 
