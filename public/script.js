@@ -147,6 +147,7 @@ const ensureHelper = (name) => {
   return fn;
 };
 const safeEconFetch = (...args) => ensureHelper('econFetch')(...args);
+const safeQuoteFetch = (...args) => ensureHelper('quoteFetch')(...args);
 const ECON_SERIES = {
   'FP.CPI.TOTL': 'Consumer Price Index',
   'SL.UEM.TOTL.ZS': 'Unemployment Rate',
@@ -1532,6 +1533,8 @@ function DataPanel({ onPlaceholders }) {
   const [start, setStart] = useState('2010');
   const [end, setEnd] = useState(String(new Date().getFullYear()));
   const [econData, setEconData] = useState(null);
+  const [ticker, setTicker] = useState('MSFT');
+  const [quote, setQuote] = useState(null);
 
   const refresh = async () => {
     setStatus('Fetching…');
@@ -1572,6 +1575,23 @@ function DataPanel({ onPlaceholders }) {
       setStatus('Updated ✅');
     } catch (err) {
       console.error('econFetch failed', err);
+      setError(err);
+      setStatus('Fetch failed. Check inputs or try again.');
+    }
+  };
+
+  const fetchQuote = async () => {
+    setStatus('Fetching…');
+    setError(null);
+    try {
+      const data = await safeQuoteFetch(ticker);
+      if (!data || typeof data.regularMarketPrice !== 'number') {
+        throw new Error('quoteFetch returned invalid data');
+      }
+      setQuote(data);
+      setStatus('Updated ✅');
+    } catch (err) {
+      console.error('quoteFetch failed', err);
       setError(err);
       setStatus('Fetch failed. Check inputs or try again.');
     }
@@ -1624,7 +1644,16 @@ function DataPanel({ onPlaceholders }) {
           React.createElement("button", { className: "kbd", onClick: fetchEcon }, "Fetch Economic Data")), /*#__PURE__*/
         econData && /*#__PURE__*/React.createElement("div", { className: "result" }, /*#__PURE__*/
           React.createElement("div", { className: "text-xs text-slate-500" }, `Results for ${ECON_SERIES[series]}`), /*#__PURE__*/
-          React.createElement("ul", { className: "text-xs max-h-48 overflow-y-auto mt-1" }, econData.map(d => /*#__PURE__*/React.createElement("li", { key: d.date }, `${d.date}: ${d.value}`))))), /*#__PURE__*/
+          React.createElement("ul", { className: "text-xs max-h-48 overflow-y-auto mt-1" }, econData.map(d => /*#__PURE__*/React.createElement("li", { key: d.date }, `${d.date}: ${d.value}`)))), /*#__PURE__*/
+        React.createElement("hr", { className: "my-4" }), /*#__PURE__*/
+        React.createElement("div", { className: "grid md:grid-cols-4 gap-3" }, /*#__PURE__*/
+          React.createElement(Field, { label: "Ticker" }, /*#__PURE__*/
+            React.createElement("input", { className: "field", value: ticker, onChange: e => setTicker(e.target.value.toUpperCase()), placeholder: "MSFT" }))), /*#__PURE__*/
+        React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
+          React.createElement("button", { className: "kbd", onClick: fetchQuote }, "Fetch Stock Quote")), /*#__PURE__*/
+        quote && /*#__PURE__*/React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, quote.shortName || quote.symbol), /*#__PURE__*/
+          React.createElement("div", { className: "text-lg font-semibold" }, money2(quote.regularMarketPrice))))), /*#__PURE__*/
 
       React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
   );

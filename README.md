@@ -4,6 +4,8 @@ This project hosts simple finance calculators served from a small Express server
 
 The repository previously included an AI chat demo, but that feature has been removed.
 
+The Data tab can load World Bank indicators and Yahoo Finance stock quotes without any API keys.
+
 ## Development
 
 Install dependencies and run the server:
