@@ -8,6 +8,12 @@ function treasuryQuery(datasetPath, params = {}) {
   }
   const qs = search.toString();
   const url = `${TREASURY_BASE}/${datasetPath}${qs ? `?${qs}` : ''}`;
-  return window.proxiedFetch(url);
+  if (typeof window.proxiedFetch === 'function') {
+    return window.proxiedFetch(url);
+  }
+  const msg = 'proxiedFetch is not available';
+  console.error(msg);
+  if (typeof alert === 'function') alert(msg);
+  throw new Error(msg);
 }
 window.treasuryQuery = treasuryQuery;

@@ -10,7 +10,13 @@ function blsFetchSingle(seriesId, { startyear, endyear, ...rest } = {}) {
   }
   const qs = params.toString();
   const url = `${BLS_BASE}/${encodeURIComponent(seriesId)}${qs ? `?${qs}` : ''}`;
-  return window.proxiedFetch(url);
+  if (typeof window.proxiedFetch === 'function') {
+    return window.proxiedFetch(url);
+  }
+  const msg = 'proxiedFetch is not available';
+  console.error(msg);
+  if (typeof alert === 'function') alert(msg);
+  throw new Error(msg);
 }
 
 function blsFetchMany(seriesIds, { startyear, endyear, key } = {}) {
@@ -18,11 +24,17 @@ function blsFetchMany(seriesIds, { startyear, endyear, key } = {}) {
   if (startyear) body.startyear = startyear;
   if (endyear) body.endyear = endyear;
   if (key) body.registrationkey = key;
-  return window.proxiedFetch(BLS_BASE, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
+  if (typeof window.proxiedFetch === 'function') {
+    return window.proxiedFetch(BLS_BASE, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  }
+  const msg = 'proxiedFetch is not available';
+  console.error(msg);
+  if (typeof alert === 'function') alert(msg);
+  throw new Error(msg);
 }
 
 window.blsFetchSingle = blsFetchSingle;

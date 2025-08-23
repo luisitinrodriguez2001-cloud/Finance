@@ -7,6 +7,12 @@ function fredSeriesObservations({ series_id, api_key, params = {} }) {
     if (v != null) search.set(k, v);
   }
   const url = `${FRED_BASE}?${search.toString()}`;
-  return window.proxiedFetch(url);
+  if (typeof window.proxiedFetch === "function") {
+    return window.proxiedFetch(url);
+  }
+  const msg = "proxiedFetch is not available";
+  console.error(msg);
+  if (typeof alert === "function") alert(msg);
+  throw new Error(msg);
 }
 window.fredSeriesObservations = fredSeriesObservations;
