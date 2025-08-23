@@ -1602,10 +1602,10 @@ function DataPanel({ onPlaceholders }) {
       React.createElement("div", { className: "mt-6 space-y-3" }, /*#__PURE__*/
         React.createElement("div", { className: "grid md:grid-cols-4 gap-3" }, /*#__PURE__*/
           React.createElement(Field, { label: "Series" }, /*#__PURE__*/
-            React.createElement("select", { className: "field", value: series, onChange: e => setSeries(e.target.value) }, /*#__PURE__*/
+            React.createElement("select", { className: "select", value: series, onChange: e => setSeries(e.target.value) }, /*#__PURE__*/
               Object.entries(ECON_SERIES).map(([id, label]) => /*#__PURE__*/React.createElement("option", { value: id, key: id }, label)))), /*#__PURE__*/
           React.createElement(Field, { label: "Frequency" }, /*#__PURE__*/
-            React.createElement("select", { className: "field", value: freq, onChange: e => setFreq(e.target.value) }, /*#__PURE__*/
+            React.createElement("select", { className: "select", value: freq, onChange: e => setFreq(e.target.value) }, /*#__PURE__*/
               Object.entries(FREQUENCIES).map(([id, label]) => /*#__PURE__*/React.createElement("option", { value: id, key: id }, label)))), /*#__PURE__*/
           React.createElement(Field, { label: "Start" }, /*#__PURE__*/
             React.createElement("input", { className: "field", type: "number", value: start, onChange: e => setStart(e.target.value), placeholder: "2010" })), /*#__PURE__*/

@@ -40,7 +40,8 @@ body { background: var(--bg); color: var(--text); }
 
 .card { border:1px solid var(--border); background: var(--card-bg); border-radius:.75rem; box-shadow:0 1px 2px rgba(0,0,0,.04); }
 
-.field {
+.field,
+.select {
   width:100%;
   border:1px solid var(--border);
   border-radius:.625rem;
@@ -50,7 +51,8 @@ body { background: var(--bg); color: var(--text); }
   font-size:.925rem;
   color: var(--input-text);
 }
-.field:focus { outline:none; border-color:#6366f1; box-shadow: var(--ring); }
+.field:focus,
+.select:focus { outline:none; border-color:#6366f1; box-shadow: var(--ring); }
 
 .kbd {
   display:inline-flex;align-items:center;gap:.5rem;
