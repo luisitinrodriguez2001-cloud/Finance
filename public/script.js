@@ -146,8 +146,13 @@ const ensureHelper = (name) => {
   if (typeof fn !== "function") throw new Error(`${name} is unavailable`);
   return fn;
 };
-const helper = name => (...args) => ensureHelper(name)(...args);
-const econFetch = helper("econFetch");
+const safeEconFetch = (...args) => ensureHelper('econFetch')(...args);
+const ECON_SERIES = {
+  CPIAUCSL: 'Consumer Price Index',
+  UNRATE: 'Unemployment Rate',
+  GDP: 'Gross Domestic Product'
+};
+const FREQUENCIES = { M: 'Monthly', Q: 'Quarterly', A: 'Annual' };
 
 /* ----------------------- Formatters & math ----------------------- */
 const money0 = n => {var _window$accounting$fo, _window$accounting, _window$accounting$fo2;return (_window$accounting$fo = (_window$accounting = window.accounting) === null || _window$accounting === void 0 ? void 0 : (_window$accounting$fo2 = _window$accounting.formatMoney) === null || _window$accounting$fo2 === void 0 ? void 0 : _window$accounting$fo2.call(_window$accounting, n !== null && n !== void 0 ? n : 0, { precision: 0 })) !== null && _window$accounting$fo !== void 0 ? _window$accounting$fo :
@@ -1521,6 +1526,11 @@ function DataPanel({ onPlaceholders }) {
   const [home, setHome] = useState(null);
   const [income, setIncome] = useState(null);
   const [status, setStatus] = useState('');
+  const [series, setSeries] = useState('CPIAUCSL');
+  const [freq, setFreq] = useState('M');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
+  const [econData, setEconData] = useState(null);
 
   const refresh = async () => {
     setStatus('Fetching…');
@@ -1541,6 +1551,20 @@ function DataPanel({ onPlaceholders }) {
       setStatus('Updated ✅');
     } catch (e) {
       console.warn('Data load failed', e);
+      setStatus('Fetch failed. Check inputs or try again.');
+    }
+  };
+
+  const fetchEcon = async () => {
+    setStatus('Fetching…');
+    try {
+      const resp = await safeEconFetch({ seriesId: series, frequency: freq, start, end });
+      const data = await resp.json();
+      if (!Array.isArray(data) || !data.length) throw new Error('econFetch returned no data');
+      setEconData(data);
+      setStatus('Updated ✅');
+    } catch (err) {
+      console.error('econFetch failed', err);
       setStatus('Fetch failed. Check inputs or try again.');
     }
   };
@@ -1575,7 +1599,25 @@ function DataPanel({ onPlaceholders }) {
         React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
         React.createElement("div", { className: "text-sm" }, status)), /*#__PURE__*/
 
-      React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh."))
+      React.createElement("div", { className: "mt-6 space-y-3" }, /*#__PURE__*/
+        React.createElement("div", { className: "grid md:grid-cols-4 gap-3" }, /*#__PURE__*/
+          React.createElement(Field, { label: "Series" }, /*#__PURE__*/
+            React.createElement("select", { className: "field", value: series, onChange: e => setSeries(e.target.value) }, /*#__PURE__*/
+              Object.entries(ECON_SERIES).map(([id, label]) => /*#__PURE__*/React.createElement("option", { value: id, key: id }, label)))), /*#__PURE__*/
+          React.createElement(Field, { label: "Frequency" }, /*#__PURE__*/
+            React.createElement("select", { className: "field", value: freq, onChange: e => setFreq(e.target.value) }, /*#__PURE__*/
+              Object.entries(FREQUENCIES).map(([id, label]) => /*#__PURE__*/React.createElement("option", { value: id, key: id }, label)))), /*#__PURE__*/
+          React.createElement(Field, { label: "Start" }, /*#__PURE__*/
+            React.createElement("input", { className: "field", type: "number", value: start, onChange: e => setStart(e.target.value), placeholder: "2010" })), /*#__PURE__*/
+          React.createElement(Field, { label: "End" }, /*#__PURE__*/
+            React.createElement("input", { className: "field", type: "number", value: end, onChange: e => setEnd(e.target.value), placeholder: "2024" })))), /*#__PURE__*/
+        React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
+          React.createElement("button", { className: "kbd", onClick: fetchEcon }, "Fetch Economic Data")), /*#__PURE__*/
+        econData && /*#__PURE__*/React.createElement("div", { className: "result" }, /*#__PURE__*/
+          React.createElement("div", { className: "text-xs text-slate-500" }, `Results for ${ECON_SERIES[series]}`), /*#__PURE__*/
+          React.createElement("ul", { className: "text-xs max-h-48 overflow-y-auto mt-1" }, econData.map(d => /*#__PURE__*/React.createElement("li", { key: d.date }, `${d.date}: ${d.value}`))))), /*#__PURE__*/
+
+      React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "Tip: placeholders across tools update when you click Refresh.")
   );
 }
 
