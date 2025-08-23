@@ -1526,14 +1526,16 @@ function DataPanel({ onPlaceholders }) {
   const [home, setHome] = useState(null);
   const [income, setIncome] = useState(null);
   const [status, setStatus] = useState('');
+  const [error, setError] = useState(null);
   const [series, setSeries] = useState('FP.CPI.TOTL');
   const [freq, setFreq] = useState('A');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
+  const [start, setStart] = useState('2010');
+  const [end, setEnd] = useState(String(new Date().getFullYear()));
   const [econData, setEconData] = useState(null);
 
   const refresh = async () => {
     setStatus('Fetching…');
+    setError(null);
     try {
       const [loc, hv, inc] = await Promise.all([
         fetchZip(zip).catch(_ => null),
@@ -1551,12 +1553,14 @@ function DataPanel({ onPlaceholders }) {
       setStatus('Updated ✅');
     } catch (e) {
       console.warn('Data load failed', e);
+      setError(e);
       setStatus('Fetch failed. Check inputs or try again.');
     }
   };
 
   const fetchEcon = async () => {
     setStatus('Fetching…');
+    setError(null);
     try {
       const data = await safeEconFetch({
         seriesId: series,
@@ -1568,6 +1572,7 @@ function DataPanel({ onPlaceholders }) {
       setStatus('Updated ✅');
     } catch (err) {
       console.error('econFetch failed', err);
+      setError(err);
       setStatus('Fetch failed. Check inputs or try again.');
     }
   };
@@ -1600,7 +1605,8 @@ function DataPanel({ onPlaceholders }) {
 
       React.createElement("div", { className: "result mt-3" }, /*#__PURE__*/
         React.createElement("div", { className: "text-xs text-slate-500" }, "Status"), /*#__PURE__*/
-        React.createElement("div", { className: "text-sm" }, status)), /*#__PURE__*/
+        React.createElement("div", { className: "text-sm" }, status), /*#__PURE__*/
+        error && /*#__PURE__*/React.createElement("div", { className: "text-xs text-red-600 mt-1" }, String((error == null ? void 0 : error.message) || error))), /*#__PURE__*/
 
       React.createElement("div", { className: "mt-6 space-y-3" }, /*#__PURE__*/
         React.createElement("div", { className: "grid md:grid-cols-4 gap-3" }, /*#__PURE__*/
@@ -1613,7 +1619,7 @@ function DataPanel({ onPlaceholders }) {
           React.createElement(Field, { label: "Start" }, /*#__PURE__*/
             React.createElement("input", { className: "field", type: "number", value: start, onChange: e => setStart(e.target.value), placeholder: "2010" })), /*#__PURE__*/
           React.createElement(Field, { label: "End" }, /*#__PURE__*/
-            React.createElement("input", { className: "field", type: "number", value: end, onChange: e => setEnd(e.target.value), placeholder: "2024" }))), /*#__PURE__*/
+            React.createElement("input", { className: "field", type: "number", value: end, onChange: e => setEnd(e.target.value), placeholder: String(new Date().getFullYear()) }))), /*#__PURE__*/
         React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
           React.createElement("button", { className: "kbd", onClick: fetchEcon }, "Fetch Economic Data")), /*#__PURE__*/
         econData && /*#__PURE__*/React.createElement("div", { className: "result" }, /*#__PURE__*/
