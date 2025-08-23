@@ -1610,7 +1610,7 @@ function DataPanel({ onPlaceholders }) {
           React.createElement(Field, { label: "Start" }, /*#__PURE__*/
             React.createElement("input", { className: "field", type: "number", value: start, onChange: e => setStart(e.target.value), placeholder: "2010" })), /*#__PURE__*/
           React.createElement(Field, { label: "End" }, /*#__PURE__*/
-            React.createElement("input", { className: "field", type: "number", value: end, onChange: e => setEnd(e.target.value), placeholder: "2024" })))), /*#__PURE__*/
+            React.createElement("input", { className: "field", type: "number", value: end, onChange: e => setEnd(e.target.value), placeholder: "2024" }))), /*#__PURE__*/
         React.createElement("div", { className: "flex items-end gap-2" }, /*#__PURE__*/
           React.createElement("button", { className: "kbd", onClick: fetchEcon }, "Fetch Economic Data")), /*#__PURE__*/
         econData && /*#__PURE__*/React.createElement("div", { className: "result" }, /*#__PURE__*/
