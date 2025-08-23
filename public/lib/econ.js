@@ -1,35 +1,29 @@
 (function () {
-  const BASE = 'https://api.stlouisfed.org/fred/series/observations';
+  const BASE = 'https://api.worldbank.org/v2/country/US/indicator/';
 
   /**
-   * Fetch economic series data.
+   * Fetch economic series data from the World Bank API.
    * @param {Object} opts
-   * @param {string} opts.seriesId - FRED series identifier.
-   * @param {string} opts.frequency - Data frequency (e.g. 'm').
-   * @param {number} opts.start - Start date as number.
-   * @param {number} opts.end - End date as number.
-   * @returns {Promise<Object>} Resolves with parsed JSON data.
+   * @param {string} opts.seriesId - World Bank indicator code.
+   * @param {number} opts.start - Start year.
+   * @param {number} opts.end - End year.
+   * @returns {Promise<Array>} Resolves with an array of data points.
    */
-  async function econFetch({ seriesId, frequency, start, end }) {
+  async function econFetch({ seriesId, start, end }) {
     if (!seriesId) {
       throw new Error('econFetch: "seriesId" is required');
-    }
-    if (!frequency) {
-      throw new Error('econFetch: "frequency" is required');
     }
     if (!Number.isFinite(start) || !Number.isFinite(end)) {
       throw new Error('econFetch: "start" and "end" must be numbers');
     }
 
     const params = new URLSearchParams({
-      series_id: seriesId,
-      frequency: frequency,
-      observation_start: String(start),
-      observation_end: String(end),
-      file_type: 'json',
+      format: 'json',
+      per_page: '5000',
+      date: `${start}:${end}`
     });
 
-    const url = `${BASE}?${params.toString()}`;
+    const url = `${BASE}${encodeURIComponent(seriesId)}?${params.toString()}`;
 
     let resp;
     try {
@@ -47,11 +41,18 @@
       throw new Error('econFetch: Expected JSON response');
     }
 
+    let json;
     try {
-      return await resp.json();
+      json = await resp.json();
     } catch (err) {
       throw new Error('econFetch: Failed to parse JSON');
     }
+
+    if (!Array.isArray(json) || json.length < 2 || !Array.isArray(json[1])) {
+      throw new Error('econFetch: Unexpected World Bank response');
+    }
+
+    return json[1];
   }
 
   window.econFetch = econFetch;

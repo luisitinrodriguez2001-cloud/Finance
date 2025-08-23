@@ -148,11 +148,11 @@ const ensureHelper = (name) => {
 };
 const safeEconFetch = (...args) => ensureHelper('econFetch')(...args);
 const ECON_SERIES = {
-  CPIAUCSL: 'Consumer Price Index',
-  UNRATE: 'Unemployment Rate',
-  GDP: 'Gross Domestic Product'
+  'FP.CPI.TOTL': 'Consumer Price Index',
+  'SL.UEM.TOTL.ZS': 'Unemployment Rate',
+  'NY.GDP.MKTP.CD': 'Gross Domestic Product'
 };
-const FREQUENCIES = { M: 'Monthly', Q: 'Quarterly', A: 'Annual' };
+const FREQUENCIES = { A: 'Annual' };
 
 /* ----------------------- Formatters & math ----------------------- */
 const money0 = n => {var _window$accounting$fo, _window$accounting, _window$accounting$fo2;return (_window$accounting$fo = (_window$accounting = window.accounting) === null || _window$accounting === void 0 ? void 0 : (_window$accounting$fo2 = _window$accounting.formatMoney) === null || _window$accounting$fo2 === void 0 ? void 0 : _window$accounting$fo2.call(_window$accounting, n !== null && n !== void 0 ? n : 0, { precision: 0 })) !== null && _window$accounting$fo !== void 0 ? _window$accounting$fo :
@@ -1526,8 +1526,8 @@ function DataPanel({ onPlaceholders }) {
   const [home, setHome] = useState(null);
   const [income, setIncome] = useState(null);
   const [status, setStatus] = useState('');
-  const [series, setSeries] = useState('CPIAUCSL');
-  const [freq, setFreq] = useState('M');
+  const [series, setSeries] = useState('FP.CPI.TOTL');
+  const [freq, setFreq] = useState('A');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
   const [econData, setEconData] = useState(null);
@@ -1558,8 +1558,11 @@ function DataPanel({ onPlaceholders }) {
   const fetchEcon = async () => {
     setStatus('Fetching…');
     try {
-      const resp = await safeEconFetch({ seriesId: series, frequency: freq, start, end });
-      const data = await resp.json();
+      const data = await safeEconFetch({
+        seriesId: series,
+        start: Number(start),
+        end: Number(end)
+      });
       if (!Array.isArray(data) || !data.length) throw new Error('econFetch returned no data');
       setEconData(data);
       setStatus('Updated ✅');
