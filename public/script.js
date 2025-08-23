@@ -6,6 +6,22 @@
 // module imports. This ensures the script runs correctly when loaded via a
 // classic script tag with Babel in the browser.
 const { proxiedFetch, blsFetchSingle, blsFetchMany, fredSeriesObservations, treasuryQuery } = window;
+
+const ensureHelper = (fn, name) => (...args) => {
+  if (typeof fn === 'function') {
+    return fn(...args);
+  }
+  const msg = `${name} is required but missing`;
+  console.error(msg);
+  if (typeof alert === 'function') alert(msg);
+  throw new Error(msg);
+};
+
+const safeProxiedFetch = ensureHelper(proxiedFetch, 'proxiedFetch');
+const safeBlsFetchSingle = ensureHelper(blsFetchSingle, 'blsFetchSingle');
+const safeBlsFetchMany = ensureHelper(blsFetchMany, 'blsFetchMany');
+const safeFredSeriesObservations = ensureHelper(fredSeriesObservations, 'fredSeriesObservations');
+const safeTreasuryQuery = ensureHelper(treasuryQuery, 'treasuryQuery');
 // Simulation defaults used across calculators. Previously these values were
 // imported from "sim/horizonDefaults.js" using an ES module import, but the
 // additional module loader caused the app to render a blank page when the
@@ -230,7 +246,7 @@ async function retryingFetch(url, opts = {}, retries = 3, tag = 'fetch') {
   const attempt = (async () => {
     for (let i = 1; i <= retries; i++) {
       try {
-        const resp = await withTimeout(proxiedFetch(url, opts), 12000);
+        const resp = await withTimeout(safeProxiedFetch(url, opts), 12000);
         if (!resp.ok) {
           const err = new Error(`HTTP ${resp.status}`);
           err.url = url;
@@ -303,7 +319,7 @@ function parseBlsSeries(arr) {
 }
 
 async function fetchBLSMany(seriesIds, opts) {
-  const resp = await blsFetchMany(seriesIds, opts);
+  const resp = await safeBlsFetchMany(seriesIds, opts);
   const text = await resp.text();
   if (!resp.ok) {
     const e = new Error(`BLS request failed: ${resp.status}`);
@@ -340,7 +356,7 @@ async function getTreasury10Y(yyyymm) {
   const end = m === '12' ? `${parseInt(y) + 1}-01-01` : `${y}-${String(parseInt(m) + 1).padStart(2, '0')}-01`;
   let text = '', resp;
   try {
-    resp = await treasuryQuery('v2/accounting/od/daily_treasury_yield_curve', {
+    resp = await safeTreasuryQuery('v2/accounting/od/daily_treasury_yield_curve', {
       filter: `record_date:ge:${start},record_date:lt:${end}`,
       fields: 'record_date,bc_10year',
       sort: 'record_date'
@@ -379,7 +395,7 @@ async function getFREDFedFunds(apiKey = '') {
   if (FRED_FF_CACHE) return FRED_FF_CACHE;
   let text = '', resp;
   try {
-    resp = await fredSeriesObservations({
+    resp = await safeFredSeriesObservations({
       series_id: 'DFF',
       api_key: apiKey,
       params: { frequency: 'm', aggregation_method: 'avg' }
@@ -1739,16 +1755,16 @@ function DataPanel() {
         const ids = blsId.split(',').map(s => s.trim()).filter(Boolean);
         const opts = { startyear: blsStart || undefined, endyear: blsEnd || undefined, key: blsKey || undefined };
         if (ids.length > 1) {
-          resp = await blsFetchMany(ids, opts);
+          resp = await safeBlsFetchMany(ids, opts);
         } else {
-          resp = await blsFetchSingle(ids[0], opts);
+          resp = await safeBlsFetchSingle(ids[0], opts);
         }
       } else if (source === 'fred') {
-        resp = await fredSeriesObservations({ series_id: fredId, api_key: fredKey });
+        resp = await safeFredSeriesObservations({ series_id: fredId, api_key: fredKey });
       } else {
         const paramsObj = {};
         new URLSearchParams(treasuryParams).forEach((v, k) => paramsObj[k] = v);
-        resp = await treasuryQuery(treasuryPath, paramsObj);
+        resp = await safeTreasuryQuery(treasuryPath, paramsObj);
       }
       const json = await resp.json();
       setResult(json);
