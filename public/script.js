@@ -1855,9 +1855,23 @@ function FunFacts({ topic }) {
       "aria-label": "Shuffle fun fact",
       style: { background: "transparent" }
     }, "\uD83D\uDD00\uFE0F")));
-}
+  }
 
 /* --------------------------------- App --------------------------------- */
+const TABS = [
+  { id: 'mortgage', label: 'Mortgage' },
+  { id: 'compound', label: 'Compound Interest' },
+  { id: 'retire', label: 'Retirement' },
+  { id: 'debt', label: 'Debt Payoff' },
+  { id: 'auto', label: 'Auto' },
+  { id: 'rent', label: 'Home Affordability' },
+  { id: 'networth', label: 'Net Worth' },
+  { id: 'tax', label: 'Taxes' },
+  { id: 'ss', label: 'Social Security' },
+  { id: 'sim', label: 'Simulations' },
+  { id: 'data', label: 'Data' }
+];
+
 function App() {
   const [view, setView] = useState('home');
   const [placeholders, setPlaceholders] = useState(null);
