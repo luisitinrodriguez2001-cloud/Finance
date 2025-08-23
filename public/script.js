@@ -141,6 +141,14 @@ function SettingsPanel({ config, onChange }) {
     React.createElement("option", { value: "base" }, "Base"), /*#__PURE__*/React.createElement("option", { value: "small" }, "Small"), /*#__PURE__*/React.createElement("option", { value: "large" }, "Large")))));
 }
 
+const ensureHelper = (name) => {
+  const fn = window[name];
+  if (typeof fn !== "function") throw new Error(`${name} is unavailable`);
+  return fn;
+};
+const helper = name => (...args) => ensureHelper(name)(...args);
+const econFetch = helper("econFetch");
+
 /* ----------------------- Formatters & math ----------------------- */
 const money0 = n => {var _window$accounting$fo, _window$accounting, _window$accounting$fo2;return (_window$accounting$fo = (_window$accounting = window.accounting) === null || _window$accounting === void 0 ? void 0 : (_window$accounting$fo2 = _window$accounting.formatMoney) === null || _window$accounting$fo2 === void 0 ? void 0 : _window$accounting$fo2.call(_window$accounting, n !== null && n !== void 0 ? n : 0, { precision: 0 })) !== null && _window$accounting$fo !== void 0 ? _window$accounting$fo :
   (n !== null && n !== void 0 ? n : 0).toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });};
