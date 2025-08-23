@@ -1857,6 +1857,32 @@ function FunFacts({ topic }) {
     }, "\uD83D\uDD00\uFE0F")));
   }
 
+const TABS = [
+  { id: 'home', label: 'Home' },
+  { id: 'mortgage', label: 'Mortgage' },
+  { id: 'compound', label: 'Compound Interest' },
+  { id: 'retire', label: 'Retirement' },
+  { id: 'debt', label: 'Debt Payoff' },
+  { id: 'auto', label: 'Auto' },
+  { id: 'rent', label: 'Home Affordability' },
+  { id: 'networth', label: 'Net Worth' },
+  { id: 'tax', label: 'Tax' },
+  { id: 'ss', label: 'Social Security' },
+  { id: 'sim', label: 'Simulations' },
+  { id: 'data', label: 'Data' }
+];
+
+function Home({ onOpen }) {
+  return /*#__PURE__*/(
+    React.createElement("section", { className: "card p-4" }, /*#__PURE__*/
+    React.createElement("h2", { className: "text-lg font-semibold mb-2" }, "Welcome"), /*#__PURE__*/
+    React.createElement("p", { className: "text-sm text-slate-600 mb-3" }, "Select a calculator to get started."), /*#__PURE__*/
+    React.createElement("div", { className: "grid grid-cols-2 sm:grid-cols-3 gap-2" },
+    TABS.filter(t => t.id !== 'home').slice(0, 6).map(t => /*#__PURE__*/
+    React.createElement("button", { key: t.id, className: "kbd w-full", onClick: () => onOpen(t.id) }, t.label)))))
+  );
+}
+
 /* --------------------------------- App --------------------------------- */
 const TABS = [
   { id: 'mortgage', label: 'Mortgage' },
