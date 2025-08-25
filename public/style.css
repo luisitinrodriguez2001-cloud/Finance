@@ -3,7 +3,7 @@
   --bg: #f8fafc;
   --text: #0f172a;
   --border: #e2e8f0;
-  --card-bg: rgba(255,255,255,.8);
+  --card-bg: #fff;
   --input-bg: #fff;
   --input-text: #0f172a;
   --accent: #0f172a;
@@ -21,7 +21,7 @@ body { background: var(--bg); color: var(--text); }
 [data-theme='dark'] {
   --bg: #0f172a;
   --text: #f8fafc;
-  --card-bg: rgba(30,41,59,.8);
+  --card-bg: #1e293b;
   --border: #334155;
   --input-bg: #1e293b;
   --input-text: #f8fafc;
@@ -40,8 +40,7 @@ body { background: var(--bg); color: var(--text); }
 
 .card { border:1px solid var(--border); background: var(--card-bg); border-radius:.75rem; box-shadow:0 1px 2px rgba(0,0,0,.04); }
 
-.field,
-.select {
+.field {
   width:100%;
   border:1px solid var(--border);
   border-radius:.625rem;
@@ -51,8 +50,7 @@ body { background: var(--bg); color: var(--text); }
   font-size:.925rem;
   color: var(--input-text);
 }
-.field:focus,
-.select:focus { outline:none; border-color:#6366f1; box-shadow: var(--ring); }
+.field:focus { outline:none; border-color:#6366f1; box-shadow: var(--ring); }
 
 .kbd {
   display:inline-flex;align-items:center;gap:.5rem;
