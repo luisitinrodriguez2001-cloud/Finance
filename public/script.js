@@ -1004,9 +1004,12 @@ async function loadStateTable(status) {
   if (STATE_TAX_CACHE[key]) return STATE_TAX_CACHE[key];
   const file =
     key === 'married'
-      ? '/state%20taxes/state_taxes_married_joint_long.csv'
-      : '/state%20taxes/state_taxes_single_long.csv';
+      ? 'state%20taxes/state_taxes_married_joint_long.csv'
+      : 'state%20taxes/state_taxes_single_long.csv';
   const res = await fetch(file);
+  if (!res.ok) {
+    throw new Error(`Failed to load state tax table: ${res.status}`);
+  }
   const text = await res.text();
   const lines = text.trim().split(/\r?\n/);
   lines.shift(); // header
