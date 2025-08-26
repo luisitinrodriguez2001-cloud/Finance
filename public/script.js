@@ -1004,8 +1004,8 @@ async function loadStateTable(status) {
   if (STATE_TAX_CACHE[key]) return STATE_TAX_CACHE[key];
   const file =
     key === 'married'
-      ? 'state%20taxes/state_taxes_married_joint_long.csv'
-      : 'state%20taxes/state_taxes_single_long.csv';
+      ? '/state%20taxes/state_taxes_married_joint_long.csv'
+      : '/state%20taxes/state_taxes_single_long.csv';
   const res = await fetch(file);
   const text = await res.text();
   const lines = text.trim().split(/\r?\n/);
@@ -1159,7 +1159,7 @@ function TaxCalc() {
 
     React.createElement("div", { className: "grid md:grid-cols-2 gap-3 mt-4" }, /*#__PURE__*/
     React.createElement("div", { className: "result result-primary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs opacity-75" }, "Taxable income"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(taxable))), /*#__PURE__*/
-    React.createElement("div", { className: "result result-primary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs opacity-75" }, "Total taxes"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(totalTax)))), /*#__PURE__*/
+    React.createElement("div", { className: "result result-primary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs opacity-75" }, "Total taxes"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(totalTax))), /*#__PURE__*/
     React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
     React.createElement("div", { className: "result result-secondary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Federal tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(fedTotal)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Ordinary: ", money0(fedOrd), " \xB7 LTCG/QD: ", money0(fedCG))), /*#__PURE__*/
     React.createElement("div", { className: "result result-secondary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "State income tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(stateTax))), /*#__PURE__*/
