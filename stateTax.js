@@ -26,6 +26,9 @@ function calcStateTax(state, status, income, overrideRate) {
     const tax = income > 0 ? income * overrideRate : 0;
     return { tax, effectiveRate: overrideRate };
   }
+  if (status !== 'Single' && status !== 'Married Filing Jointly') {
+    return { tax: 0, effectiveRate: 0, manual: true };
+  }
   const table = status === 'Married Filing Jointly' ? married : single;
   const brackets = table[state];
   if (!brackets || income <= 0) return { tax: 0, effectiveRate: 0 };

@@ -25,6 +25,9 @@ app.get('/api/state-tax', (req, res) => {
   }
   const override = overrideRate !== undefined ? Number(overrideRate) : NaN;
   const result = calcStateTax(state, status, incomeNum, override);
+  if (result.manual) {
+    return res.json({ ...result, message: 'Unsupported filing status; please enter rate manually' });
+  }
   res.json(result);
 });
 
