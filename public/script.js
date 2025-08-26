@@ -993,6 +993,58 @@ function capitalGainsTax(status, taxableIncome, ltcg) {
   const r20 = Math.max(0, ltcg - r0 - r15);
   return r0 * 0 + r15 * 0.15 + r20 * 0.20;
 }
+
+// Load state income tax brackets from CSV files and calculate taxes on the
+// client. This mirrors the server-side `calcStateTax` logic so the calculator
+// works even when the API endpoint is unavailable (e.g. on static hosting).
+const STATE_TAX_CACHE = { single: null, married: null };
+
+async function loadStateTable(status) {
+  const key = status === 'Married Filing Jointly' ? 'married' : 'single';
+  if (STATE_TAX_CACHE[key]) return STATE_TAX_CACHE[key];
+  const file =
+    key === 'married'
+      ? 'state%20taxes/state_taxes_married_joint_long.csv'
+      : 'state%20taxes/state_taxes_single_long.csv';
+  const res = await fetch(file);
+  const text = await res.text();
+  const lines = text.trim().split(/\r?\n/);
+  lines.shift(); // header
+  const data = {};
+  for (const line of lines) {
+    if (!line) continue;
+    const [st, bracketIndex, threshold, rate] = line.split(',');
+    if (!data[st]) data[st] = [];
+    data[st].push({ threshold: Number(threshold), rate: Number(rate) });
+  }
+  for (const st of Object.keys(data)) {
+    data[st].sort((a, b) => a.threshold - b.threshold);
+  }
+  STATE_TAX_CACHE[key] = data;
+  return data;
+}
+
+async function calcStateTaxClient(state, status, income, overrideRate) {
+  if (Number.isFinite(overrideRate)) {
+    const tax = income > 0 ? income * overrideRate : 0;
+    return { tax, effectiveRate: overrideRate };
+  }
+  const table = await loadStateTable(status);
+  const brackets = table[state];
+  if (!brackets || income <= 0) return { tax: 0, effectiveRate: 0 };
+  let tax = 0;
+  for (let i = 0; i < brackets.length; i++) {
+    const { threshold, rate } = brackets[i];
+    const upper = i < brackets.length - 1 ? brackets[i + 1].threshold - 1e-9 : Infinity;
+    if (income > threshold) {
+      const amt = Math.min(income, upper) - threshold;
+      tax += amt * rate;
+    } else {
+      break;
+    }
+  }
+  return { tax, effectiveRate: tax / income };
+}
 function getStateSuggestion(state) {
   if (NO_TAX_STATES.has(state)) return { rate: 0, msg: 'No wage income tax' };
   if (FLAT_HINTS[state]) return { rate: FLAT_HINTS[state], msg: 'Flat-rate state (typical)' };
@@ -1022,19 +1074,25 @@ function TaxCalc() {
 
   useEffect(() => {
     let canceled = false;
-    async function fetchState() {
+    async function calc() {
+      if (!Number.isFinite(taxable)) {
+        if (!canceled) setStateResult({ rate: suggestion.rate, tax: 0 });
+        return;
+      }
       try {
-        const overrideParam = Number.isFinite(customRate) ? `&overrideRate=${customRate / 100}` : '';
-        const res = await fetch(`/api/state-tax?state=${state}&status=${encodeURIComponent(status)}&income=${taxable}${overrideParam}`);
-        const data = await res.json();
+        const data = await calcStateTaxClient(
+          state,
+          status,
+          taxable,
+          Number.isFinite(customRate) ? customRate / 100 : NaN
+        );
         if (!canceled) setStateResult({ rate: data.effectiveRate * 100, tax: data.tax });
       } catch (e) {
         const rate = Number.isFinite(customRate) ? customRate : suggestion.rate;
         if (!canceled) setStateResult({ rate, tax: Math.max(0, taxable) * (rate / 100) });
       }
     }
-    if (Number.isFinite(taxable)) fetchState();
-    else setStateResult({ rate: suggestion.rate, tax: 0 });
+    calc();
     return () => { canceled = true; };
   }, [state, status, taxable, customRate, suggestion]);
 
@@ -1307,7 +1365,7 @@ function Simulations({ scenarioDefaults }) {
         if (scenario === 'growth') {
           const c = mode === 'advanced' ? contribVal * Math.pow(1 + inf, y) : contribVal;
           if (t === 0) costBasis += c;
-          bal = (bal + c) * (1 + r);
+          bal = Math.max(0, (bal + c) * (1 + r));
         } else {
           const w = mode === 'advanced' ? withdrawVal * Math.pow(1 + inf, y) : withdrawVal;
           bal = bal * (1 + r) - w;
@@ -1345,7 +1403,7 @@ function Simulations({ scenarioDefaults }) {
           const r = randomNormal(m2, s2);
           if (scenario === 'growth') {
             const c = mode === 'advanced' ? contribVal * Math.pow(1 + inf, y) : contribVal;
-            bal = (bal + c) * (1 + r);
+            bal = Math.max(0, (bal + c) * (1 + r));
           } else {
             const w = mode === 'advanced' ? withdrawVal * Math.pow(1 + inf, y) : withdrawVal;
             bal = bal * (1 + r) - w;
