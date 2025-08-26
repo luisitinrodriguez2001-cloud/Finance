@@ -1,5 +1,6 @@
 const express = require('express');
 const path = require('path');
+const { calcStateTax } = require('./stateTax');
 
 const app = express();
 
@@ -14,6 +15,18 @@ app.locals.investorProfile = INVESTOR_PROFILE;
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/components', express.static(path.join(__dirname, 'components')));
 app.use('/sim', express.static(path.join(__dirname, 'sim')));
+
+app.get('/api/state-tax', (req, res) => {
+  const { state, status, income, overrideRate } = req.query;
+  const incomeNum = Number(income);
+  if (!state || !Number.isFinite(incomeNum)) {
+    return res.status(400).json({ error: 'state and income required' });
+  }
+  const override = overrideRate !== undefined ? Number(overrideRate) : NaN;
+  const result = calcStateTax(state, status, incomeNum, override);
+  res.json(result);
+});
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
