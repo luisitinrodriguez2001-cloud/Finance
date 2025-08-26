@@ -1075,7 +1075,8 @@ function TaxCalc() {
   const std = STD_2025[status];
   const wagesX = wages !== null && wages !== void 0 ? wages : 85000;
   const gross = wagesX + (otherInc !== null && otherInc !== void 0 ? otherInc : 0) + (ltcg !== null && ltcg !== void 0 ? ltcg : 0);
-  const deductions = itemize ? itemDed || 0 : std;
+  const usingStdDed = itemize && Number.isFinite(itemDed) && itemDed < std;
+  const deductions = itemize ? Math.max(Number.isFinite(itemDed) ? itemDed : 0, std) : std;
   const taxable = Math.max(0, gross - deductions);
 
   const ordTaxable = Math.max(0, taxable - (ltcg || 0));
@@ -1143,6 +1144,7 @@ function TaxCalc() {
 
     itemize && /*#__PURE__*/
     React.createElement(Field, { label: "Itemized deduction" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: itemDed, onChange: setItemDed, placeholder: money0(20000) })),
+    usingStdDed && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500 sm:col-span-2" }, "Standard deduction of ", money0(std), " is used since it exceeds your itemized amount."),
 
     !itemize && /*#__PURE__*/
     React.createElement("div", { className: "result" }, /*#__PURE__*/
