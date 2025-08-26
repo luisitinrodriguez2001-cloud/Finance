@@ -1006,9 +1006,9 @@ function TaxCalc() {
   const [ltcg, setLtcg] = useState();
   const [itemize, setItemize] = useState(false);
   const [itemDed, setItemDed] = useState();
-  const [stateRate, setStateRate] = useState();
-
+  const [customRate, setCustomRate] = useState();
   const suggestion = useMemo(() => getStateSuggestion(state), [state]);
+  const [stateResult, setStateResult] = useState({ rate: suggestion.rate, tax: 0 });
   const std = STD_2025[status];
   const wagesX = wages !== null && wages !== void 0 ? wages : 85000;
   const gross = wagesX + (otherInc !== null && otherInc !== void 0 ? otherInc : 0) + (ltcg !== null && ltcg !== void 0 ? ltcg : 0);
@@ -1019,8 +1019,27 @@ function TaxCalc() {
   const fedOrd = marginalTax(BRACKETS_2025[status], ordTaxable);
   const fedCG = capitalGainsTax(status, ordTaxable, ltcg || 0);
   const fedTotal = fedOrd + fedCG;
-  const effStateRate = Number.isFinite(stateRate) ? stateRate : suggestion.rate;
-  const stateTax = Math.max(0, taxable) * (effStateRate / 100);
+
+  useEffect(() => {
+    let canceled = false;
+    async function fetchState() {
+      try {
+        const overrideParam = Number.isFinite(customRate) ? `&overrideRate=${customRate / 100}` : '';
+        const res = await fetch(`/api/state-tax?state=${state}&status=${encodeURIComponent(status)}&income=${taxable}${overrideParam}`);
+        const data = await res.json();
+        if (!canceled) setStateResult({ rate: data.effectiveRate * 100, tax: data.tax });
+      } catch (e) {
+        const rate = Number.isFinite(customRate) ? customRate : suggestion.rate;
+        if (!canceled) setStateResult({ rate, tax: Math.max(0, taxable) * (rate / 100) });
+      }
+    }
+    if (Number.isFinite(taxable)) fetchState();
+    else setStateResult({ rate: suggestion.rate, tax: 0 });
+    return () => { canceled = true; };
+  }, [state, status, taxable, customRate, suggestion]);
+
+  const effStateRate = stateResult.rate;
+  const stateTax = stateResult.tax;
 
   const ssTax = Math.min(wagesX, SS_WAGE_BASE) * SS_RATE;
   const medTax = wagesX * MED_RATE;
@@ -1063,19 +1082,17 @@ function TaxCalc() {
 
 
 
-
     React.createElement("div", { className: "card p-4" }, /*#__PURE__*/
     React.createElement("h3", { className: "font-semibold mb-3" }, "State estimate"), /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Effective state rate (est.)" }, /*#__PURE__*/
-    React.createElement(PercentInput, { value: stateRate, onChange: setStateRate, placeholder: String(suggestion.rate) })), /*#__PURE__*/
-
     React.createElement("div", { className: "result" }, /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, "Hint"), /*#__PURE__*/
-    React.createElement("div", { className: "text-sm" }, suggestion.msg))), /*#__PURE__*/
+    React.createElement("div", { className: "text-xs text-slate-500" }, "Effective state rate"), /*#__PURE__*/
+    React.createElement("div", { className: "text-lg font-semibold" }, `${effStateRate.toFixed(2)}%`), /*#__PURE__*/
+    React.createElement("div", { className: "text-xs text-slate-500" }, Number.isFinite(customRate) ? 'Using override' : suggestion.msg)), /*#__PURE__*/
+    React.createElement(Field, { label: "Override rate (%)" }, /*#__PURE__*/React.createElement(PercentInput, { value: customRate, onChange: setCustomRate, placeholder: suggestion.rate.toFixed(2) }))), /*#__PURE__*/
 
-
-    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "This is a simple effective-rate estimate (credits/AMT/NIIT not included)."))), /*#__PURE__*/
+    React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "This is a simple effective-rate estimate (credits/AMT/NIIT not included)."), /*#__PURE__*/
+    React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "Source: ", /*#__PURE__*/React.createElement("a", { href: "https://taxfoundation.org/data/all/state/state-income-tax-rates/", target: "_blank", rel: "noreferrer", className: "underline" }, "Tax Foundation")))), /*#__PURE__*/
 
 
 
