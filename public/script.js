@@ -1062,6 +1062,7 @@ function TaxCalc() {
   const [itemize, setItemize] = useState(false);
   const [itemDed, setItemDed] = useState();
   const [customRate, setCustomRate] = useState();
+  const [useCustomRate, setUseCustomRate] = useState(false);
   const suggestion = useMemo(() => getStateSuggestion(state), [state]);
   const [stateResult, setStateResult] = useState({ rate: suggestion.rate, tax: 0 });
   const std = STD_2025[status];
@@ -1087,17 +1088,17 @@ function TaxCalc() {
           state,
           status,
           taxable,
-          Number.isFinite(customRate) ? customRate / 100 : NaN
+          useCustomRate && Number.isFinite(customRate) ? customRate / 100 : NaN
         );
         if (!canceled) setStateResult({ rate: data.effectiveRate * 100, tax: data.tax });
       } catch (e) {
-        const rate = Number.isFinite(customRate) ? customRate : suggestion.rate;
+        const rate = useCustomRate && Number.isFinite(customRate) ? customRate : suggestion.rate;
         if (!canceled) setStateResult({ rate, tax: Math.max(0, taxable) * (rate / 100) });
       }
     }
     calc();
     return () => { canceled = true; };
-  }, [state, status, taxable, customRate, suggestion]);
+  }, [state, status, taxable, customRate, useCustomRate, suggestion]);
 
   const effStateRate = stateResult.rate;
   const stateTax = stateResult.tax;
@@ -1150,8 +1151,9 @@ function TaxCalc() {
     React.createElement("div", { className: "result" }, /*#__PURE__*/
     React.createElement("div", { className: "text-xs text-slate-500" }, "Effective state rate"), /*#__PURE__*/
     React.createElement("div", { className: "text-lg font-semibold" }, `${effStateRate.toFixed(2)}%`), /*#__PURE__*/
-    React.createElement("div", { className: "text-xs text-slate-500" }, Number.isFinite(customRate) ? 'Using override' : suggestion.msg)), /*#__PURE__*/
-    React.createElement(Field, { label: "Override rate (%)" }, /*#__PURE__*/React.createElement(PercentInput, { value: customRate, onChange: setCustomRate, placeholder: suggestion.rate.toFixed(2) }))), /*#__PURE__*/
+    React.createElement("div", { className: "text-xs text-slate-500" }, useCustomRate && Number.isFinite(customRate) ? 'Using override' : suggestion.msg)), /*#__PURE__*/
+    React.createElement(Field, { label: "Manually enter rate" }, /*#__PURE__*/React.createElement("input", { type: "checkbox", className: "h-4 w-4", checked: useCustomRate, onChange: e => setUseCustomRate(e.target.checked) })),
+    useCustomRate && /*#__PURE__*/React.createElement(Field, { label: "Override rate (%)" }, /*#__PURE__*/React.createElement(PercentInput, { value: customRate, onChange: setCustomRate, placeholder: suggestion.rate.toFixed(2) })))), /*#__PURE__*/
 
     React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "This is a simple effective-rate estimate (credits/AMT/NIIT not included)."), /*#__PURE__*/
     React.createElement("p", { className: "text-[11px] text-slate-500 mt-1" }, "Source: ", /*#__PURE__*/React.createElement("a", { href: "https://taxfoundation.org/data/all/state/state-income-tax-rates/", target: "_blank", rel: "noreferrer", className: "underline" }, "Tax Foundation")))), /*#__PURE__*/
