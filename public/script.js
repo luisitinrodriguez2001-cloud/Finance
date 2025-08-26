@@ -1065,6 +1065,10 @@ function TaxCalc() {
   const [useCustomRate, setUseCustomRate] = useState(false);
   const suggestion = useMemo(() => getStateSuggestion(state), [state]);
   const [stateResult, setStateResult] = useState({ rate: suggestion.rate, tax: 0 });
+  const customRateForced = status === 'Married Filing Separately' || status === 'Head of Household';
+  useEffect(() => {
+    if (customRateForced) setUseCustomRate(true);
+  }, [customRateForced]);
   const std = STD_2025[status];
   const wagesX = wages !== null && wages !== void 0 ? wages : 85000;
   const gross = wagesX + (otherInc !== null && otherInc !== void 0 ? otherInc : 0) + (ltcg !== null && ltcg !== void 0 ? ltcg : 0);
@@ -1152,7 +1156,8 @@ function TaxCalc() {
     React.createElement("div", { className: "text-xs text-slate-500" }, "Effective state rate"), /*#__PURE__*/
     React.createElement("div", { className: "text-lg font-semibold" }, `${effStateRate.toFixed(2)}%`), /*#__PURE__*/
     React.createElement("div", { className: "text-xs text-slate-500" }, useCustomRate && Number.isFinite(customRate) ? 'Using override' : suggestion.msg)), /*#__PURE__*/
-    React.createElement(Field, { label: "Manually enter rate" }, /*#__PURE__*/React.createElement("input", { type: "checkbox", className: "h-4 w-4", checked: useCustomRate, onChange: e => setUseCustomRate(e.target.checked) })),
+    React.createElement(Field, { label: "Manually enter rate" }, /*#__PURE__*/React.createElement("input", { type: "checkbox", className: "h-4 w-4", checked: useCustomRate, onChange: e => setUseCustomRate(e.target.checked), disabled: customRateForced })),
+    customRateForced && /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500 sm:col-span-2" }, "State tax rate must be entered manually for this filing status; calculator currently supports only Single or Married Filing Jointly."),
     useCustomRate && /*#__PURE__*/React.createElement(Field, { label: "Override rate (%)" }, /*#__PURE__*/React.createElement(PercentInput, { value: customRate, onChange: setCustomRate, placeholder: suggestion.rate.toFixed(2) })))), /*#__PURE__*/
 
     React.createElement("p", { className: "text-xs text-slate-600 mt-2" }, "This is a simple effective-rate estimate (credits/AMT/NIIT not included)."), /*#__PURE__*/
