@@ -1051,7 +1051,7 @@ async function calcStateTaxClient(state, status, income, overrideRate) {
 function getStateSuggestion(state) {
   if (NO_TAX_STATES.has(state)) return { rate: 0, msg: 'No wage income tax' };
   if (FLAT_HINTS[state]) return { rate: FLAT_HINTS[state], msg: 'Flat-rate state (typical)' };
-  return { rate: 5.0, msg: 'Progressive state — enter an estimated effective %' };
+  return { rate: 5.0, msg: 'Progressive state — tax rate increases with income.' };
 }
 function TaxCalc() {
   const [status, setStatus] = useState('Single');
