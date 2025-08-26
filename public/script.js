@@ -1045,6 +1045,7 @@ function TaxCalc() {
   const medTax = wagesX * MED_RATE;
   const addlMedTax = Math.max(0, wagesX - ADDL_MED_THRESHOLD[status]) * 0.009;
   const ficaTax = ssTax + medTax + addlMedTax;
+  const totalTax = fedTotal + stateTax + ficaTax;
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Taxes (2025)" }, /*#__PURE__*/
@@ -1098,11 +1099,13 @@ function TaxCalc() {
 
 
 
-    React.createElement("div", { className: "grid md:grid-cols-4 gap-3 mt-4" }, /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Taxable income"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(taxable))), /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Federal tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(fedTotal)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Ordinary: ", money0(fedOrd), " \xB7 LTCG/QD: ", money0(fedCG))), /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "State income tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(stateTax))), /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Other W-2 taxes (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(ficaTax)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "SS: ", money0(ssTax), " \xB7 Medicare: ", money0(medTax + addlMedTax))))));
+    React.createElement("div", { className: "grid md:grid-cols-2 gap-3 mt-4" }, /*#__PURE__*/
+    React.createElement("div", { className: "result result-primary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs opacity-75" }, "Taxable income"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(taxable))), /*#__PURE__*/
+    React.createElement("div", { className: "result result-primary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs opacity-75" }, "Total taxes"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(totalTax)))), /*#__PURE__*/
+    React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-3" }, /*#__PURE__*/
+    React.createElement("div", { className: "result result-secondary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Federal tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(fedTotal)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Ordinary: ", money0(fedOrd), " \xB7 LTCG/QD: ", money0(fedCG))), /*#__PURE__*/
+    React.createElement("div", { className: "result result-secondary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "State income tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(stateTax))), /*#__PURE__*/
+    React.createElement("div", { className: "result result-secondary" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Other W-2 taxes (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(ficaTax)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "SS: ", money0(ssTax), " \xB7 Medicare: ", money0(medTax + addlMedTax)))))));
 
 
 
