@@ -15,6 +15,7 @@ app.locals.investorProfile = INVESTOR_PROFILE;
 app.use('/public', express.static(path.join(__dirname, 'public')));
 app.use('/components', express.static(path.join(__dirname, 'components')));
 app.use('/sim', express.static(path.join(__dirname, 'sim')));
+app.use('/state taxes', express.static(path.join(__dirname, 'state taxes')));
 
 app.get('/api/state-tax', (req, res) => {
   const { state, status, income, overrideRate } = req.query;
