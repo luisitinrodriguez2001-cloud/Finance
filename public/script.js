@@ -959,6 +959,17 @@ const LTCG_2025 = {
   'Married Filing Separately': { z0: 48350, z15: 300000 },
   'Head of Household': { z0: 64750, z15: 566700 } };
 
+// Payroll tax assumptions (employee share)
+const SS_RATE = 0.062;
+const SS_WAGE_BASE = 168600; // Social Security wage base (2024)
+const MED_RATE = 0.0145;
+const ADDL_MED_THRESHOLD = {
+  'Single': 200000,
+  'Married Filing Jointly': 250000,
+  'Married Filing Separately': 125000,
+  'Head of Household': 200000
+};
+
 const NO_TAX_STATES = new Set(['AK', 'FL', 'NV', 'SD', 'TN', 'TX', 'WA', 'WY', 'NH']);
 const FLAT_HINTS = { 'AZ': 2.5, 'CO': 4.4, 'ID': 5.8, 'IL': 4.95, 'IN': 3.05, 'KY': 4.0, 'MA': 5.0, 'MI': 4.25, 'MS': 5.0, 'NC': 4.5, 'ND': 2.5, 'PA': 3.07, 'UT': 4.65 };
 
@@ -999,7 +1010,8 @@ function TaxCalc() {
 
   const suggestion = useMemo(() => getStateSuggestion(state), [state]);
   const std = STD_2025[status];
-  const gross = (wages !== null && wages !== void 0 ? wages : 85000) + (otherInc !== null && otherInc !== void 0 ? otherInc : 0) + (ltcg !== null && ltcg !== void 0 ? ltcg : 0);
+  const wagesX = wages !== null && wages !== void 0 ? wages : 85000;
+  const gross = wagesX + (otherInc !== null && otherInc !== void 0 ? otherInc : 0) + (ltcg !== null && ltcg !== void 0 ? ltcg : 0);
   const deductions = itemize ? itemDed || 0 : std;
   const taxable = Math.max(0, gross - deductions);
 
@@ -1009,6 +1021,11 @@ function TaxCalc() {
   const fedTotal = fedOrd + fedCG;
   const effStateRate = Number.isFinite(stateRate) ? stateRate : suggestion.rate;
   const stateTax = Math.max(0, taxable) * (effStateRate / 100);
+
+  const ssTax = Math.min(wagesX, SS_WAGE_BASE) * SS_RATE;
+  const medTax = wagesX * MED_RATE;
+  const addlMedTax = Math.max(0, wagesX - ADDL_MED_THRESHOLD[status]) * 0.009;
+  const ficaTax = ssTax + medTax + addlMedTax;
 
   return /*#__PURE__*/(
     React.createElement(Section, { title: "Taxes (2025)" }, /*#__PURE__*/
@@ -1064,10 +1081,11 @@ function TaxCalc() {
 
 
 
-    React.createElement("div", { className: "grid md:grid-cols-3 gap-3 mt-4" }, /*#__PURE__*/
+    React.createElement("div", { className: "grid md:grid-cols-4 gap-3 mt-4" }, /*#__PURE__*/
     React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Taxable income"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(taxable))), /*#__PURE__*/
     React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Federal tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(fedTotal)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Ordinary: ", money0(fedOrd), " \xB7 LTCG/QD: ", money0(fedCG))), /*#__PURE__*/
-    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "State income tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(stateTax))))));
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "State income tax (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(stateTax))), /*#__PURE__*/
+    React.createElement("div", { className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "Other W-2 taxes (est.)"), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, money0(ficaTax)), /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, "SS: ", money0(ssTax), " \xB7 Medicare: ", money0(medTax + addlMedTax))))));
 
 
 
