@@ -1009,53 +1009,239 @@ function DownVsPoints() {
 
   const pmiNote = scenarioC && pmiAnnualPctX > 0 ? (scenarioC.pmiOffMonth ? `PMI projected to drop in month ${scenarioC.pmiOffMonth}.` : 'PMI applies for the full horizon.') : null;
 
-  return /*#__PURE__*/(
-    React.createElement(Section, { title: "Down Payment vs Points \u2014 Cash Allocation Optimizer" }, /*#__PURE__*/
-    React.createElement("div", { className: "grid lg:grid-cols-2 gap-4" }, /*#__PURE__*/
-    React.createElement("div", { className: "card p-4 space-y-4" }, /*#__PURE__*/
-    React.createElement("h3", { className: "font-semibold" }, "Inputs"), /*#__PURE__*/
-    React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Home price" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: homePrice, onChange: setHomePrice, placeholder: money0(homePricePH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Base APR (before points)" }, /*#__PURE__*/React.createElement(PercentInput, { value: baseApr, onChange: setBaseApr, placeholder: String(baseAprPH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Loan term" }, /*#__PURE__*/React.createElement("select", { className: "field", value: termYears ?? termYearsPH, onChange: e => setTermYears(parseInt(e.target.value, 10)) }, /*#__PURE__*/React.createElement("option", { value: "30" }, "30"), /*#__PURE__*/React.createElement("option", { value: "20" }, "20"), /*#__PURE__*/React.createElement("option", { value: "15" }, "15"))), /*#__PURE__*/
-    React.createElement(Field, { label: "Cash available at closing" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: cashAvailable, onChange: setCashAvailable, placeholder: money0(cashAvailablePH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Minimum down %" }, /*#__PURE__*/React.createElement(PercentInput, { value: minDownPct, onChange: setMinDownPct, placeholder: String(minDownPctPH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "PMI annual rate", hint: "applies until LTV \u2264 80%" }, /*#__PURE__*/React.createElement(PercentInput, { value: pmiAnnualPct, onChange: setPmiAnnualPct, placeholder: String(pmiAnnualPH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Rate reduction per point" }, /*#__PURE__*/React.createElement("div", { className: "space-y-1" }, /*#__PURE__*/React.createElement(PercentInput, { value: rateReduction, onChange: setRateReduction, placeholder: String(rateReductionPH) }), /*#__PURE__*/React.createElement("button", { type: "button", className: "text-xs underline", onClick: () => setShowCurve(s => !s) }, "edit curve"))), /*#__PURE__*/
-    React.createElement(Field, { label: "Max points purchasable" }, /*#__PURE__*/React.createElement(NumberInput, { value: maxPoints, onChange: setMaxPoints, step: "0.25", placeholder: String(maxPointsPH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Horizon (years)" }, /*#__PURE__*/React.createElement(NumberInput, { value: horizonYears, onChange: setHorizonYears, step: "0.5", placeholder: String(horizonYearsPH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Opportunity return / Discount rate" }, /*#__PURE__*/React.createElement(PercentInput, { value: opportunityRate, onChange: setOpportunityRate, placeholder: String(opportunityRatePH) }))), /*#__PURE__*/
-    React.createElement("div", { className: "flex flex-wrap gap-2" }, /*#__PURE__*/
-    React.createElement("button", { type: "button", className: (useOppForNPV ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setUseOppForNPV(v => !v) }, useOppForNPV ? 'Use as NPV discount \u2713' : 'Use as NPV discount'), /*#__PURE__*/
-    React.createElement("button", { type: "button", className: (useOppAsAlt ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setUseOppAsAlt(v => !v) }, useOppAsAlt ? 'Use as alternative return \u2713' : 'Use as alternative return')),
-    showCurve && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600" }, "Assumes a constant reduction per point. Adjust inputs to model your own pricing curve."), /*#__PURE__*/
-    React.createElement("div", { className: "space-y-2" }, /*#__PURE__*/
-    React.createElement("div", { className: "flex items-center justify-between" }, /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium" }, "Taxes"), /*#__PURE__*/React.createElement("button", { type: "button", className: (taxesOn ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setTaxesOn(t => !t) }, taxesOn ? 'On' : 'Off')),
-    taxesOn && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
-    React.createElement(Field, { label: "Marginal tax rate" }, /*#__PURE__*/React.createElement(PercentInput, { value: marginalTax, onChange: setMarginalTax, placeholder: String(marginalTaxPH) })), /*#__PURE__*/
-    React.createElement(Field, { label: "Points tax treatment" }, /*#__PURE__*/React.createElement("select", { className: "field", value: pointsTreatment, onChange: e => setPointsTreatment(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "amortize" }, "Amortize over loan"), /*#__PURE__*/React.createElement("option", { value: "deduct" }, "Deduct in year 1")))))))), /*#__PURE__*/
-    React.createElement("div", { className: "card p-4 space-y-4" }, /*#__PURE__*/
-    React.createElement("h3", { className: "font-semibold" }, "Allocation"), /*#__PURE__*/
-    React.createElement("p", { className: "text-sm text-slate-600" }, "Cash after the required minimum down payment: ", money0(extraCash)), /*#__PURE__*/
-    React.createElement("input", { type: "range", min: "0", max: "100", value: allocation, onChange: e => setAllocation(parseFloat(e.target.value)), disabled: extraCash <= 0, className: "w-full accent-slate-900" }), /*#__PURE__*/
-    React.createElement("div", { className: "text-sm" }, /*#__PURE__*/React.createElement("div", null, "Points: ", formatPct(pointsShare), " (", money0(scenarioC?.pointsCost ?? 0), ")"), /*#__PURE__*/React.createElement("div", null, "Extra down: ", formatPct(downShare), " (", money0(scenarioC?.extraDown ?? 0), ")")), /*#__PURE__*/
-    React.createElement("div", { className: "flex flex-wrap gap-2" }, presetButtons.map(btn => /*#__PURE__*/React.createElement("button", { key: btn.label, type: "button", className: (allocation === btn.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setAllocation(btn.value) }, btn.label))), /*#__PURE__*/
-    React.createElement("h4", { className: "text-sm font-semibold" }, "Scenarios (auto-calculated)"), /*#__PURE__*/
-    React.createElement("div", { className: "overflow-x-auto" }, /*#__PURE__*/
-    React.createElement("table", { className: "min-w-full text-xs" }, /*#__PURE__*/
-    React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", { className: "text-left p-1" }, "Scenario"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Points"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Extra down"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Rate"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Monthly"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "NPV"))), /*#__PURE__*/
-    React.createElement("tbody", null,
-    scenarioA && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "A. Down"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioA.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioA.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioA.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioA.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioA.npv))),
-    scenarioB && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "B. Points"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioB.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioB.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioB.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioB.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioB.npv))),
-    scenarioC && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "C. Custom"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioC.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioC.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioC.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioC.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioC.npv))),
-    scenarioD && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "D. Optimized"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioD.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioD.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioD.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioD.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioD.npv))))))))),
-    insufficientCash ? /*#__PURE__*/React.createElement("div", { className: "mt-4 p-4 border rounded-xl bg-amber-50 text-amber-800 text-sm" }, "Insufficient cash for the minimum down payment.") : /*#__PURE__*/React.createElement("div", { className: "card p-4 space-y-4 mt-4" }, /*#__PURE__*/
-    React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, tiles.map(tile => /*#__PURE__*/React.createElement("div", { key: tile.label, className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, tile.label), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, tile.value)))), /*#__PURE__*/
-    summary && /*#__PURE__*/React.createElement("p", { className: "text-sm text-slate-600" }, `At a ${horizonLabel}-year horizon, ${summary.label} has the lowest NPV, beating the next option by ${money0(summary.delta)}.`), /*#__PURE__*/
-    scenarioC && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500" }, "Effective APR includes the impact of points versus cash kept for down payment."), /*#__PURE__*/
-    pmiNote && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500" }, pmiNote), /*#__PURE__*/
-    React.createElement("div", { className: "grid lg:grid-cols-2 gap-4" }, /*#__PURE__*/React.createElement("canvas", { ref: lineCanvasRef, height: "180" }), /*#__PURE__*/React.createElement("canvas", { ref: barCanvasRef, height: "180" })), /*#__PURE__*/
-    React.createElement("ul", { className: "text-xs text-slate-500 space-y-1" }, /*#__PURE__*/React.createElement("li", null, "Assumes constant rate reduction per point unless edited."), /*#__PURE__*/React.createElement("li", null, "PMI drops when LTV \u2264 80% on scheduled amortization."), /*#__PURE__*/React.createElement("li", null, "Taxes toggles are modeling simplifications, not advice."))))));
+  return (
+    <Section title="Down Payment vs Points — Cash Allocation Optimizer">
+      <div className="grid lg:grid-cols-2 gap-4">
+        <div className="card p-4 space-y-4">
+          <h3 className="font-semibold">Inputs</h3>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <Field label="Home price">
+              <CurrencyInput value={homePrice} onChange={setHomePrice} placeholder={money0(homePricePH)} />
+            </Field>
+            <Field label="Base APR (before points)">
+              <PercentInput value={baseApr} onChange={setBaseApr} placeholder={String(baseAprPH)} />
+            </Field>
+            <Field label="Loan term">
+              <select
+                className="field"
+                value={termYears ?? termYearsPH}
+                onChange={e => setTermYears(parseInt(e.target.value, 10))}
+              >
+                <option value="30">30</option>
+                <option value="20">20</option>
+                <option value="15">15</option>
+              </select>
+            </Field>
+            <Field label="Cash available at closing">
+              <CurrencyInput value={cashAvailable} onChange={setCashAvailable} placeholder={money0(cashAvailablePH)} />
+            </Field>
+            <Field label="Minimum down %">
+              <PercentInput value={minDownPct} onChange={setMinDownPct} placeholder={String(minDownPctPH)} />
+            </Field>
+            <Field label="PMI annual rate" hint="applies until LTV ≤ 80%">
+              <PercentInput value={pmiAnnualPct} onChange={setPmiAnnualPct} placeholder={String(pmiAnnualPH)} />
+            </Field>
+            <Field label="Rate reduction per point">
+              <div className="space-y-1">
+                <PercentInput value={rateReduction} onChange={setRateReduction} placeholder={String(rateReductionPH)} />
+                <button type="button" className="text-xs underline" onClick={() => setShowCurve(s => !s)}>
+                  edit curve
+                </button>
+              </div>
+            </Field>
+            <Field label="Max points purchasable">
+              <NumberInput value={maxPoints} onChange={setMaxPoints} step="0.25" placeholder={String(maxPointsPH)} />
+            </Field>
+            <Field label="Horizon (years)">
+              <NumberInput value={horizonYears} onChange={setHorizonYears} step="0.5" placeholder={String(horizonYearsPH)} />
+            </Field>
+            <Field label="Opportunity return / Discount rate">
+              <PercentInput value={opportunityRate} onChange={setOpportunityRate} placeholder={String(opportunityRatePH)} />
+            </Field>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              className={`${useOppForNPV ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+              onClick={() => setUseOppForNPV(v => !v)}
+            >
+              {useOppForNPV ? 'Use as NPV discount ✓' : 'Use as NPV discount'}
+            </button>
+            <button
+              type="button"
+              className={`${useOppAsAlt ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+              onClick={() => setUseOppAsAlt(v => !v)}
+            >
+              {useOppAsAlt ? 'Use as alternative return ✓' : 'Use as alternative return'}
+            </button>
+          </div>
+          {showCurve && (
+            <p className="text-xs text-slate-600">
+              Assumes a constant reduction per point. Adjust inputs to model your own pricing curve.
+            </p>
+          )}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Taxes</span>
+              <button
+                type="button"
+                className={`${taxesOn ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+                onClick={() => setTaxesOn(t => !t)}
+              >
+                {taxesOn ? 'On' : 'Off'}
+              </button>
+            </div>
+            {taxesOn && (
+              <div className="grid sm:grid-cols-2 gap-3">
+                <Field label="Marginal tax rate">
+                  <PercentInput value={marginalTax} onChange={setMarginalTax} placeholder={String(marginalTaxPH)} />
+                </Field>
+                <Field label="Points tax treatment">
+                  <select
+                    className="field"
+                    value={pointsTreatment}
+                    onChange={e => setPointsTreatment(e.target.value)}
+                  >
+                    <option value="amortize">Amortize over loan</option>
+                    <option value="deduct">Deduct in year 1</option>
+                  </select>
+                </Field>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="card p-4 space-y-4">
+          <h3 className="font-semibold">Allocation</h3>
+          <p className="text-sm text-slate-600">
+            Cash after the required minimum down payment: {money0(extraCash)}
+          </p>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={allocation}
+            onChange={e => setAllocation(parseFloat(e.target.value))}
+            disabled={extraCash <= 0}
+            className="w-full accent-slate-900"
+          />
+          <div className="text-sm">
+            <div>
+              Points: {formatPct(pointsShare)} ({money0(scenarioC?.pointsCost ?? 0)})
+            </div>
+            <div>
+              Extra down: {formatPct(downShare)} ({money0(scenarioC?.extraDown ?? 0)})
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {presetButtons.map(btn => (
+              <button
+                key={btn.label}
+                type="button"
+                className={`${allocation === btn.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+                onClick={() => setAllocation(btn.value)}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+          <h4 className="text-sm font-semibold">Scenarios (auto-calculated)</h4>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-xs">
+              <thead>
+                <tr>
+                  <th className="text-left p-1">Scenario</th>
+                  <th className="text-right p-1">Points</th>
+                  <th className="text-right p-1">Extra down</th>
+                  <th className="text-right p-1">Rate</th>
+                  <th className="text-right p-1">Monthly</th>
+                  <th className="text-right p-1">NPV</th>
+                </tr>
+              </thead>
+              <tbody>
+                {scenarioA && (
+                  <tr className="border-t">
+                    <td className="p-1">A. Down</td>
+                    <td className="text-right p-1">{scenarioA.pointsPct.toFixed(2)}</td>
+                    <td className="text-right p-1">{money0(scenarioA.extraDown)}</td>
+                    <td className="text-right p-1">{`${scenarioA.apr.toFixed(3)}%`}</td>
+                    <td className="text-right p-1">{money0(scenarioA.monthlyPayment)}</td>
+                    <td className="text-right p-1">{money0(scenarioA.npv)}</td>
+                  </tr>
+                )}
+                {scenarioB && (
+                  <tr className="border-t">
+                    <td className="p-1">B. Points</td>
+                    <td className="text-right p-1">{scenarioB.pointsPct.toFixed(2)}</td>
+                    <td className="text-right p-1">{money0(scenarioB.extraDown)}</td>
+                    <td className="text-right p-1">{`${scenarioB.apr.toFixed(3)}%`}</td>
+                    <td className="text-right p-1">{money0(scenarioB.monthlyPayment)}</td>
+                    <td className="text-right p-1">{money0(scenarioB.npv)}</td>
+                  </tr>
+                )}
+                {scenarioC && (
+                  <tr className="border-t">
+                    <td className="p-1">C. Custom</td>
+                    <td className="text-right p-1">{scenarioC.pointsPct.toFixed(2)}</td>
+                    <td className="text-right p-1">{money0(scenarioC.extraDown)}</td>
+                    <td className="text-right p-1">{`${scenarioC.apr.toFixed(3)}%`}</td>
+                    <td className="text-right p-1">{money0(scenarioC.monthlyPayment)}</td>
+                    <td className="text-right p-1">{money0(scenarioC.npv)}</td>
+                  </tr>
+                )}
+                {scenarioD && (
+                  <tr className="border-t">
+                    <td className="p-1">D. Optimized</td>
+                    <td className="text-right p-1">{scenarioD.pointsPct.toFixed(2)}</td>
+                    <td className="text-right p-1">{money0(scenarioD.extraDown)}</td>
+                    <td className="text-right p-1">{`${scenarioD.apr.toFixed(3)}%`}</td>
+                    <td className="text-right p-1">{money0(scenarioD.monthlyPayment)}</td>
+                    <td className="text-right p-1">{money0(scenarioD.npv)}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {insufficientCash ? (
+            <div className="mt-4 p-4 border rounded-xl bg-amber-50 text-amber-800 text-sm">
+              Insufficient cash for the minimum down payment.
+            </div>
+          ) : (
+            <div className="card p-4 space-y-4 mt-4">
+              <div className="grid sm:grid-cols-3 gap-3">
+                {tiles.map(tile => (
+                  <div key={tile.label} className="result">
+                    <div className="text-xs text-slate-500">{tile.label}</div>
+                    <div className="text-lg font-semibold">{tile.value}</div>
+                  </div>
+                ))}
+              </div>
+              {summary && (
+                <p className="text-sm text-slate-600">
+                  {`At a ${horizonLabel}-year horizon, ${summary.label} has the lowest NPV, beating the next option by ${money0(summary.delta)}.`}
+                </p>
+              )}
+              {scenarioC && (
+                <p className="text-xs text-slate-500">
+                  Effective APR includes the impact of points versus cash kept for down payment.
+                </p>
+              )}
+              {pmiNote && <p className="text-xs text-slate-500">{pmiNote}</p>}
+              <div className="grid lg:grid-cols-2 gap-4">
+                <canvas ref={lineCanvasRef} height="180" />
+                <canvas ref={barCanvasRef} height="180" />
+              </div>
+              <ul className="text-xs text-slate-500 space-y-1">
+                <li>Assumes constant rate reduction per point unless edited.</li>
+                <li>PMI drops when LTV ≤ 80% on scheduled amortization.</li>
+                <li>Taxes toggles are modeling simplifications, not advice.</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </Section>
+  );
+
 }
 
 /* ----------------------- Compound Interest ----------------------- */
