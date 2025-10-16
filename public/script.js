@@ -195,6 +195,175 @@ function remainingBalance({ principal, apr, years, monthsElapsed }) {
   return principal * Math.pow(1 + i, k) - A * ((Math.pow(1 + i, k) - 1) / i);
 }
 
+/* ----------------------- Down vs Points helpers ----------------------- */
+function calcMonthlyPayment(principal, aprPct, termMonths) {
+  if (!(principal > 0) || !(termMonths > 0)) return 0;
+  const r = (aprPct || 0) / 100 / 12;
+  if (r <= 0) return principal / termMonths;
+  const g = Math.pow(1 + r, termMonths);
+  return principal * (r * g) / (g - 1);
+}
+
+function buildDownVsPointsSchedule({ principal, aprPct, termMonths, pmiAnnualPct, homePrice }) {
+  const rows = [];
+  if (!(principal > 0) || !(termMonths > 0)) {
+    return { rows, payment: 0, pmiOffMonth: 0 };
+  }
+  const payment = calcMonthlyPayment(principal, aprPct, termMonths);
+  const rate = (aprPct || 0) / 100 / 12;
+  const pmiMonthly = (pmiAnnualPct || 0) / 100 / 12 * principal;
+  let balance = principal;
+  let pmiOffMonth = termMonths;
+  let pmiActive = pmiAnnualPct > 0;
+  for (let month = 1; month <= termMonths && balance > 0.01; month++) {
+    const interest = balance * rate;
+    let principalPaid = payment - interest;
+    if (principalPaid > balance) principalPaid = balance;
+    const newBalance = Math.max(0, balance - principalPaid);
+    if (pmiActive && homePrice > 0 && newBalance / homePrice <= 0.8) {
+      pmiActive = false;
+      pmiOffMonth = month;
+    }
+    const pmi = pmiActive ? pmiMonthly : 0;
+    rows.push({
+      month,
+      interest,
+      principal: principalPaid,
+      balance: newBalance,
+      payment,
+      pmi,
+      total: payment + pmi
+    });
+    balance = newBalance;
+  }
+  if (!pmiActive) {
+    // ensure subsequent months show 0 PMI even if schedule shorter than termMonths
+    for (let month = rows.length + 1; month <= termMonths; month++) {
+      rows.push({ month, interest: 0, principal: 0, balance: 0, payment: 0, pmi: 0, total: 0 });
+    }
+  }
+  return { rows, payment, pmiOffMonth: pmiAnnualPct > 0 ? pmiOffMonth : 0 };
+}
+
+function npvToHorizon({ upfront, schedule, horizonMonths, monthlyDisc, taxes }) {
+  const { marginalRate = 0, pointsCost = 0, termMonths = schedule.length, treatment = 'amortize', includeTaxes = false } = taxes || {};
+  const disc = Math.max(0, monthlyDisc || 0);
+  let npv = upfront;
+  let totalCash = upfront;
+  let totalCashTax = upfront;
+  let totalInterest = 0;
+  let totalInterestAfterTax = 0;
+  const monthlyFlows = [];
+  const monthlyFlowsTax = [];
+  const horizon = Math.min(schedule.length, Math.max(0, horizonMonths || 0));
+  const rate = Math.max(0, marginalRate || 0) / 100;
+  const amortBenefit = includeTaxes && termMonths > 0 ? (pointsCost * rate) / termMonths : 0;
+  let deductBenefit = includeTaxes && treatment === 'deduct' ? pointsCost * rate : 0;
+  for (let i = 0; i < horizon; i++) {
+    const row = schedule[i] || { interest: 0, payment: 0, pmi: 0, total: 0 };
+    const month = i + 1;
+    const baseCost = row.total;
+    totalCash += baseCost;
+    monthlyFlows.push(baseCost);
+    totalInterest += row.interest;
+    let adjCost = baseCost;
+    if (includeTaxes) {
+      const interestAfter = row.interest * (1 - rate);
+      const principal = row.payment - row.interest;
+      const taxBenefit = treatment === 'deduct' && month === 1 ? deductBenefit : amortBenefit;
+      adjCost = principal + interestAfter + row.pmi - taxBenefit;
+      if (treatment === 'deduct' && month === 1) deductBenefit = 0;
+      totalInterestAfterTax += interestAfter;
+    }
+    totalCashTax += adjCost;
+    monthlyFlowsTax.push(adjCost);
+  }
+  let npvFlows = 0;
+  let npvFlowsTax = 0;
+  monthlyFlows.forEach((c, idx) => { npvFlows += c / Math.pow(1 + disc, idx + 1); });
+  monthlyFlowsTax.forEach((c, idx) => { npvFlowsTax += c / Math.pow(1 + disc, idx + 1); });
+  npv += includeTaxes ? npvFlowsTax : npvFlows;
+  return {
+    npv,
+    totalCash: includeTaxes ? totalCashTax : totalCash,
+    totalInterest,
+    totalInterestAfterTax: includeTaxes ? totalInterestAfterTax : totalInterest,
+    monthlyFlows,
+    monthlyFlowsTax
+  };
+}
+
+function breakevenMonth({ withPoints, noPoints, horizonMonths }) {
+  if (!withPoints || !noPoints) return null;
+  const horizon = Math.min(horizonMonths || withPoints.length, withPoints.length, noPoints.length);
+  for (let i = 0; i < horizon; i++) {
+    if (withPoints[i] < noPoints[i] - 1e-2) return i;
+  }
+  return null;
+}
+
+function optimizeAllocation({ computeScenario, steps = 200 }) {
+  let best = null;
+  for (let i = 0; i <= steps; i++) {
+    const share = i / steps;
+    const scenario = computeScenario(share);
+    if (!scenario) continue;
+    if (!best || scenario.npv < best.npv) {
+      best = { ...scenario, share };
+    }
+  }
+  return best;
+}
+
+function solveEffectiveApr({ loanAmount, pointsCost, schedule, horizonMonths }) {
+  if (!(loanAmount > 0)) return 0;
+  const horizon = Math.min(schedule.length, Math.max(1, horizonMonths || schedule.length));
+  const flows = [];
+  flows.push(loanAmount - (pointsCost || 0));
+  for (let i = 0; i < horizon; i++) {
+    const row = schedule[i] || { total: 0 };
+    flows.push(-row.total);
+  }
+  let low = -0.99;
+  let high = 1;
+  const npvAt = r => flows.reduce((acc, v, idx) => acc + v / Math.pow(1 + r, idx), 0);
+  let npvLow = npvAt(low);
+  let npvHigh = npvAt(high);
+  if (npvLow * npvHigh > 0) {
+    high = 5;
+    npvHigh = npvAt(high);
+    if (npvLow * npvHigh > 0) return 0;
+  }
+  for (let iter = 0; iter < 60; iter++) {
+    const mid = (low + high) / 2;
+    const npvMid = npvAt(mid);
+    if (Math.abs(npvMid) < 1e-6) return Math.pow(1 + mid, 12) - 1;
+    if (npvLow * npvMid < 0) {
+      high = mid;
+      npvHigh = npvMid;
+    } else {
+      low = mid;
+      npvLow = npvMid;
+    }
+  }
+  const rate = (low + high) / 2;
+  return Math.pow(1 + rate, 12) - 1;
+}
+
+/* unit-like sanity checks */
+if (typeof window !== 'undefined') {
+  try {
+    const pay = calcMonthlyPayment(300000, 6, 360);
+    console.assert(Math.abs(pay - 1798.65) < 0.5, 'calcMonthlyPayment check');
+    const sched = buildDownVsPointsSchedule({ principal: 200000, aprPct: 6, termMonths: 360, pmiAnnualPct: 0.5, homePrice: 250000 });
+    console.assert(sched.rows.length >= 360, 'schedule length');
+    const npv = npvToHorizon({ upfront: 50000, schedule: sched.rows, horizonMonths: 12, monthlyDisc: 0.0025, taxes: { includeTaxes: false } });
+    console.assert(npv.npv > 0, 'npv positive');
+    const eff = solveEffectiveApr({ loanAmount: 200000, pointsCost: 0, schedule: sched.rows, horizonMonths: 60 });
+    console.assert(eff > 0 && eff < 0.2, 'effective apr range');
+  } catch (err) { console.warn('Down vs Points helpers test failed', err); }
+}
+
 /* ----------------------- Live data helpers (ZIP/Census) ----------------------- */
 function useLocalStorage(key, initial) {
   const [val, setVal] = useState(() => {
@@ -527,6 +696,366 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
 
 
 
+}
+
+/* ----------------------- Down Payment vs Points ----------------------- */
+function DownVsPoints() {
+  const [homePrice, setHomePrice] = useState();
+  const [baseApr, setBaseApr] = useState();
+  const [termYears, setTermYears] = useState();
+  const [cashAvailable, setCashAvailable] = useState();
+  const [minDownPct, setMinDownPct] = useState();
+  const [pmiAnnualPct, setPmiAnnualPct] = useState();
+  const [rateReduction, setRateReduction] = useState();
+  const [maxPoints, setMaxPoints] = useState();
+  const [horizonYears, setHorizonYears] = useState();
+  const [opportunityRate, setOpportunityRate] = useState();
+  const [useOppForNPV, setUseOppForNPV] = useState(true);
+  const [useOppAsAlt, setUseOppAsAlt] = useState(true);
+  const [taxesOn, setTaxesOn] = useState(false);
+  const [marginalTax, setMarginalTax] = useState();
+  const [pointsTreatment, setPointsTreatment] = useState('amortize');
+  const [allocation, setAllocation] = useState(50);
+  const [showCurve, setShowCurve] = useState(false);
+
+  const homePricePH = 350000;
+  const baseAprPH = 6.25;
+  const termYearsPH = 30;
+  const cashAvailablePH = 50000;
+  const minDownPctPH = 5;
+  const pmiAnnualPH = 0.5;
+  const rateReductionPH = 0.25;
+  const maxPointsPH = 4;
+  const horizonYearsPH = 7;
+  const opportunityRatePH = 5;
+  const marginalTaxPH = 24;
+
+  const homePriceX = homePrice ?? homePricePH;
+  const baseAprX = baseApr ?? baseAprPH;
+  const termYearsX = termYears ?? termYearsPH;
+  const cashAvailableX = cashAvailable ?? cashAvailablePH;
+  const minDownPctX = minDownPct ?? minDownPctPH;
+  const pmiAnnualPctX = pmiAnnualPct ?? pmiAnnualPH;
+  const rateReductionX = rateReduction ?? rateReductionPH;
+  const maxPointsX = maxPoints ?? maxPointsPH;
+  const horizonYearsX = horizonYears ?? horizonYearsPH;
+  const opportunityRateX = opportunityRate ?? opportunityRatePH;
+  const marginalTaxX = marginalTax ?? marginalTaxPH;
+
+  const termMonths = Math.max(1, Math.round(termYearsX * 12));
+  const horizonMonths = Math.min(termMonths, Math.max(1, Math.round(horizonYearsX * 12)));
+  const requiredMinDown = Math.max(0, homePriceX * (minDownPctX / 100));
+  const minDownCap = Math.min(homePriceX, requiredMinDown);
+  const extraCashRaw = cashAvailableX - minDownCap;
+  const extraCash = Math.max(0, extraCashRaw);
+  const maxExtraDown = Math.max(0, homePriceX - minDownCap);
+  const insufficientCash = cashAvailableX + 1e-6 < minDownCap;
+  const monthlyOpp = Math.max(0, opportunityRateX || 0) / 100 / 12;
+  const monthlyDisc = useOppForNPV ? monthlyOpp : 0;
+  const taxesEnabled = taxesOn && marginalTaxX > 0;
+
+  useEffect(() => {
+    if (extraCash <= 0 && allocation !== 0) setAllocation(0);
+  }, [extraCash, allocation]);
+
+  const analysis = useMemo(() => {
+    if (insufficientCash) return null;
+
+    const scenarioCache = new Map();
+
+    const buildScenario = pctInput => {
+      const pctClamped = Math.max(0, Math.min(pctInput, maxPointsX));
+      const cacheKey = pctClamped.toFixed(3);
+      if (scenarioCache.has(cacheKey)) return scenarioCache.get(cacheKey);
+
+      let pct = pctClamped;
+      if (!(extraCash > 0) || !(homePriceX > minDownCap)) pct = 0;
+
+      let loan = Math.max(0, homePriceX - minDownCap);
+      let extraDownUsed = 0;
+      let pointsCost = 0;
+      let downPayment = minDownCap;
+      for (let iter = 0; iter < 40; iter++) {
+        pointsCost = loan * pct / 100;
+        if (pointsCost > extraCash + 1e-6) {
+          pct = Math.max(0, pct - 0.01);
+          continue;
+        }
+        extraDownUsed = Math.max(0, Math.min(extraCash - pointsCost, maxExtraDown));
+        downPayment = Math.min(homePriceX, minDownCap + extraDownUsed);
+        const newLoan = Math.max(0, homePriceX - downPayment);
+        if (Math.abs(newLoan - loan) < 0.5) {
+          loan = newLoan;
+          break;
+        }
+        loan = newLoan;
+      }
+      pointsCost = loan * pct / 100;
+      if (pointsCost > extraCash + 1e-6) {
+        pct = extraCash > 0 && loan > 0 ? Math.floor((extraCash / loan) * 10000) / 100 : 0;
+        pointsCost = loan * pct / 100;
+      }
+      extraDownUsed = Math.max(0, Math.min(extraCash - pointsCost, maxExtraDown));
+      downPayment = Math.min(homePriceX, minDownCap + extraDownUsed);
+      loan = Math.max(0, homePriceX - downPayment);
+      const apr = Math.max(0.1, baseAprX - pct * rateReductionX);
+      const schedInfo = buildDownVsPointsSchedule({ principal: loan, aprPct: apr, termMonths, pmiAnnualPct: pmiAnnualPctX, homePrice: homePriceX });
+      const schedule = schedInfo.rows;
+      const upfront = downPayment + pointsCost;
+      const taxesConfig = { includeTaxes: taxesEnabled, marginalRate: marginalTaxX, pointsCost, termMonths, treatment: pointsTreatment };
+      const npvRes = npvToHorizon({ upfront, schedule, horizonMonths, monthlyDisc, taxes: taxesConfig });
+      let npvVal = npvRes.npv;
+      if (useOppAsAlt && extraDownUsed > 0) {
+        npvVal += monthlyOpp > 0 ? extraDownUsed * (1 - Math.pow(1 + monthlyOpp, -horizonMonths)) : 0;
+      }
+      const cumulative = [];
+      const cumulativeTax = [];
+      let cum = upfront;
+      let cumTax = upfront;
+      cumulative.push(cum);
+      cumulativeTax.push(cumTax);
+      for (let i = 0; i < horizonMonths; i++) {
+        const row = schedule[i] || { total: 0 };
+        cum += row.total;
+        cumulative.push(cum);
+        const taxCost = taxesEnabled ? (npvRes.monthlyFlowsTax[i] || 0) : row.total;
+        cumTax += taxCost;
+        cumulativeTax.push(cumTax);
+      }
+      const effApr = solveEffectiveApr({ loanAmount: loan, pointsCost, schedule, horizonMonths });
+      const scenario = {
+        pointsPct: pct,
+        pointsCost,
+        extraDown: extraDownUsed,
+        unusedCash: Math.max(0, extraCash - pointsCost - extraDownUsed),
+        downPayment,
+        loanAmount: loan,
+        apr,
+        schedule,
+        monthlyPayment: schedule[0] ? schedule[0].total : calcMonthlyPayment(loan, apr, termMonths),
+        pmiOffMonth: schedInfo.pmiOffMonth,
+        upfront,
+        totalInterest: npvRes.totalInterest,
+        totalInterestAfterTax: npvRes.totalInterestAfterTax,
+        totalCash: npvRes.totalCash,
+        npv: npvVal,
+        cumulative,
+        cumulativeTax,
+        cashSharePoints: extraCash > 0 ? Math.min(1, pointsCost / extraCash) : 0,
+        cashShareDown: extraCash > 0 ? Math.min(1, extraDownUsed / extraCash) : 0,
+        effApr,
+        taxesIncluded: taxesEnabled
+      };
+      scenarioCache.set(cacheKey, scenario);
+      return scenario;
+    };
+
+    const scenarioFromShare = share => {
+      const target = Math.max(0, Math.min(share, 1));
+      const baseScenario = buildScenario(0);
+      const maxScenario = buildScenario(maxPointsX);
+      const maxPointsFeasible = maxScenario.pointsPct;
+      if (!(extraCash > 0) || maxPointsFeasible <= 0) return baseScenario;
+      if (target >= 0.999) return maxScenario;
+      if (target <= 0.001) return baseScenario;
+      let low = 0;
+      let high = maxPointsFeasible;
+      let best = baseScenario;
+      let bestDiff = Math.abs(best.cashSharePoints - target);
+      for (let iter = 0; iter < 40; iter++) {
+        const mid = (low + high) / 2;
+        const midScenario = buildScenario(mid);
+        const diff = Math.abs(midScenario.cashSharePoints - target);
+        if (diff < bestDiff - 1e-4) {
+          best = midScenario;
+          bestDiff = diff;
+        }
+        if (diff < 0.001) {
+          best = midScenario;
+          break;
+        }
+        if (midScenario.cashSharePoints > target) {
+          high = mid;
+        } else {
+          low = mid;
+        }
+      }
+      return best;
+    };
+
+    const scenarioA = buildScenario(0);
+    const scenarioB = buildScenario(maxPointsX);
+    const sliderScenario = scenarioFromShare(extraCash > 0 ? allocation / 100 : 0);
+    const optimized = optimizeAllocation({ computeScenario: scenarioFromShare, steps: 200 }) || sliderScenario;
+
+    const baseCum = (sliderScenario.taxesIncluded ? scenarioA.cumulativeTax : scenarioA.cumulative).slice(1);
+    const customCum = (sliderScenario.taxesIncluded ? sliderScenario.cumulativeTax : sliderScenario.cumulative).slice(1);
+    const breakevenIdx = sliderScenario.pointsPct > 0 ? breakevenMonth({ withPoints: customCum, noPoints: baseCum, horizonMonths }) : null;
+    const breakeven = breakevenIdx !== null ? breakevenIdx + 1 : null;
+
+    const ranked = [
+      { id: 'All Extra → Down', npv: scenarioA.npv, scenario: scenarioA },
+      { id: 'All Extra → Points', npv: scenarioB.npv, scenario: scenarioB },
+      { id: 'Custom allocation', npv: sliderScenario.npv, scenario: sliderScenario },
+      { id: 'Optimized', npv: optimized.npv, scenario: optimized }
+    ].filter(x => Number.isFinite(x.npv));
+    ranked.sort((a, b) => a.npv - b.npv);
+    const best = ranked[0];
+    const nextBest = ranked[1];
+
+    return {
+      scenarioA,
+      scenarioB,
+      sliderScenario,
+      optimized,
+      breakeven,
+      summary: best && nextBest ? {
+        label: best.id,
+        delta: Math.max(0, nextBest.npv - best.npv)
+      } : null
+    };
+  }, [allocation, extraCash, homePriceX, minDownCap, maxExtraDown, maxPointsX, baseAprX, rateReductionX, termMonths, pmiAnnualPctX, horizonMonths, taxesEnabled, marginalTaxX, pointsTreatment, monthlyDisc, useOppAsAlt, monthlyOpp, insufficientCash]);
+
+  const scenarioA = analysis?.scenarioA;
+  const scenarioB = analysis?.scenarioB;
+  const scenarioC = analysis?.sliderScenario;
+  const scenarioD = analysis?.optimized;
+  const breakeven = analysis?.breakeven;
+
+  const lineCanvasRef = useRef(null);
+  const lineChartRef = useRef(null);
+  const barCanvasRef = useRef(null);
+  const barChartRef = useRef(null);
+
+  const formatPct = pct => `${(pct * 100).toFixed(0)}%`;
+
+  useEffect(() => {
+    if (!scenarioC || insufficientCash) return;
+    if (lineChartRef.current) { try { lineChartRef.current.destroy(); } catch (_) {} lineChartRef.current = null; }
+    if (!window.Chart || !lineCanvasRef.current) return;
+    try {
+      const ctx = lineCanvasRef.current.getContext('2d');
+      const useTax = scenarioC.taxesIncluded;
+      const labels = Array.from({ length: (useTax ? scenarioC.cumulativeTax : scenarioC.cumulative).length }, (_, i) => i);
+      const ds = [
+        { label: 'All Extra → Down', data: useTax ? scenarioA.cumulativeTax : scenarioA.cumulative, borderColor: '#0ea5e9', backgroundColor: 'transparent', tension: 0.2, pointRadius: 0 },
+        { label: 'All Extra → Points', data: useTax ? scenarioB.cumulativeTax : scenarioB.cumulative, borderColor: '#f97316', backgroundColor: 'transparent', tension: 0.2, pointRadius: 0 },
+        { label: 'Custom allocation', data: useTax ? scenarioC.cumulativeTax : scenarioC.cumulative, borderColor: '#10b981', backgroundColor: 'transparent', tension: 0.2, pointRadius: 0, borderDash: [6, 3] }
+      ];
+      lineChartRef.current = new Chart(ctx, {
+        type: 'line',
+        data: { labels, datasets: ds },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line' } } },
+          scales: { y: { ticks: { callback: v => money0(v) } }, x: { title: { display: true, text: 'Months' } } }
+        }
+      });
+    } catch (err) { console.warn('Chart skipped:', err); }
+  }, [scenarioA, scenarioB, scenarioC, insufficientCash]);
+
+  useEffect(() => {
+    if (!scenarioC || insufficientCash) return;
+    if (barChartRef.current) { try { barChartRef.current.destroy(); } catch (_) {} barChartRef.current = null; }
+    if (!window.Chart || !barCanvasRef.current) return;
+    try {
+      const ctx = barCanvasRef.current.getContext('2d');
+      const items = [
+        { label: 'All Extra → Down', value: scenarioA.npv },
+        { label: 'All Extra → Points', value: scenarioB.npv },
+        { label: 'Custom allocation', value: scenarioC.npv },
+        { label: 'Optimized', value: scenarioD.npv }
+      ];
+      barChartRef.current = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: items.map(i => i.label),
+          datasets: [{
+            label: 'NPV to horizon',
+            data: items.map(i => i.value),
+            backgroundColor: items.map(i => i.label === 'Optimized' ? '#0f172a' : '#94a3b8')
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { ticks: { callback: v => money0(v) } } }
+        }
+      });
+    } catch (err) { console.warn('Chart skipped:', err); }
+  }, [scenarioA, scenarioB, scenarioC, scenarioD, insufficientCash]);
+
+  const presetButtons = [
+    { label: 'All Extra → Down', value: 0 },
+    { label: 'All Extra → Points', value: 100 },
+    { label: '50 / 50', value: 50 },
+    { label: 'Optimizer', value: Math.round((analysis?.optimized ? analysis.optimized.cashSharePoints * 100 : allocation)) }
+  ];
+
+  const pointsShare = scenarioC ? scenarioC.cashSharePoints : 0;
+  const downShare = scenarioC ? scenarioC.cashShareDown : 0;
+
+  const summary = analysis?.summary;
+  const horizonLabel = (horizonMonths / 12).toFixed(1).replace(/\.0$/, '');
+
+  const tiles = scenarioC ? [
+    { label: 'Monthly payment', value: money0(scenarioC.monthlyPayment) },
+    { label: 'Total interest to horizon', value: money0(scenarioC.taxesIncluded ? scenarioC.totalInterestAfterTax : scenarioC.totalInterest) },
+    { label: 'Total cash out to horizon', value: money0(scenarioC.totalCash) },
+    { label: 'Breakeven for points', value: scenarioC.pointsPct > 0 ? (breakeven ? `${breakeven} mo` : '—') : '—' },
+    { label: 'NPV to horizon', value: money0(scenarioC.npv) },
+    { label: 'Effective APR to horizon', value: `${(scenarioC.effApr * 100).toFixed(2)}%` }
+  ] : [];
+
+  const pmiNote = scenarioC && pmiAnnualPctX > 0 ? (scenarioC.pmiOffMonth ? `PMI projected to drop in month ${scenarioC.pmiOffMonth}.` : 'PMI applies for the full horizon.') : null;
+
+  return /*#__PURE__*/(
+    React.createElement(Section, { title: "Down Payment vs Points \u2014 Cash Allocation Optimizer" }, /*#__PURE__*/
+    React.createElement("div", { className: "grid lg:grid-cols-2 gap-4" }, /*#__PURE__*/
+    React.createElement("div", { className: "card p-4 space-y-4" }, /*#__PURE__*/
+    React.createElement("h3", { className: "font-semibold" }, "Inputs"), /*#__PURE__*/
+    React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Home price" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: homePrice, onChange: setHomePrice, placeholder: money0(homePricePH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Base APR (before points)" }, /*#__PURE__*/React.createElement(PercentInput, { value: baseApr, onChange: setBaseApr, placeholder: String(baseAprPH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Loan term" }, /*#__PURE__*/React.createElement("select", { className: "field", value: termYears ?? termYearsPH, onChange: e => setTermYears(parseInt(e.target.value, 10)) }, /*#__PURE__*/React.createElement("option", { value: "30" }, "30"), /*#__PURE__*/React.createElement("option", { value: "20" }, "20"), /*#__PURE__*/React.createElement("option", { value: "15" }, "15"))), /*#__PURE__*/
+    React.createElement(Field, { label: "Cash available at closing" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: cashAvailable, onChange: setCashAvailable, placeholder: money0(cashAvailablePH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Minimum down %" }, /*#__PURE__*/React.createElement(PercentInput, { value: minDownPct, onChange: setMinDownPct, placeholder: String(minDownPctPH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "PMI annual rate", hint: "applies until LTV \u2264 80%" }, /*#__PURE__*/React.createElement(PercentInput, { value: pmiAnnualPct, onChange: setPmiAnnualPct, placeholder: String(pmiAnnualPH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Rate reduction per point" }, /*#__PURE__*/React.createElement("div", { className: "space-y-1" }, /*#__PURE__*/React.createElement(PercentInput, { value: rateReduction, onChange: setRateReduction, placeholder: String(rateReductionPH) }), /*#__PURE__*/React.createElement("button", { type: "button", className: "text-xs underline", onClick: () => setShowCurve(s => !s) }, "edit curve"))), /*#__PURE__*/
+    React.createElement(Field, { label: "Max points purchasable" }, /*#__PURE__*/React.createElement(NumberInput, { value: maxPoints, onChange: setMaxPoints, step: "0.25", placeholder: String(maxPointsPH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Horizon (years)" }, /*#__PURE__*/React.createElement(NumberInput, { value: horizonYears, onChange: setHorizonYears, step: "0.5", placeholder: String(horizonYearsPH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Opportunity return / Discount rate" }, /*#__PURE__*/React.createElement(PercentInput, { value: opportunityRate, onChange: setOpportunityRate, placeholder: String(opportunityRatePH) }))), /*#__PURE__*/
+    React.createElement("div", { className: "flex flex-wrap gap-2" }, /*#__PURE__*/
+    React.createElement("button", { type: "button", className: (useOppForNPV ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setUseOppForNPV(v => !v) }, useOppForNPV ? 'Use as NPV discount \u2713' : 'Use as NPV discount'), /*#__PURE__*/
+    React.createElement("button", { type: "button", className: (useOppAsAlt ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setUseOppAsAlt(v => !v) }, useOppAsAlt ? 'Use as alternative return \u2713' : 'Use as alternative return')),
+    showCurve && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-600" }, "Assumes a constant reduction per point. Adjust inputs to model your own pricing curve."), /*#__PURE__*/
+    React.createElement("div", { className: "space-y-2" }, /*#__PURE__*/
+    React.createElement("div", { className: "flex items-center justify-between" }, /*#__PURE__*/React.createElement("span", { className: "text-sm font-medium" }, "Taxes"), /*#__PURE__*/React.createElement("button", { type: "button", className: (taxesOn ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setTaxesOn(t => !t) }, taxesOn ? 'On' : 'Off')),
+    taxesOn && /*#__PURE__*/React.createElement("div", { className: "grid sm:grid-cols-2 gap-3" }, /*#__PURE__*/
+    React.createElement(Field, { label: "Marginal tax rate" }, /*#__PURE__*/React.createElement(PercentInput, { value: marginalTax, onChange: setMarginalTax, placeholder: String(marginalTaxPH) })), /*#__PURE__*/
+    React.createElement(Field, { label: "Points tax treatment" }, /*#__PURE__*/React.createElement("select", { className: "field", value: pointsTreatment, onChange: e => setPointsTreatment(e.target.value) }, /*#__PURE__*/React.createElement("option", { value: "amortize" }, "Amortize over loan"), /*#__PURE__*/React.createElement("option", { value: "deduct" }, "Deduct in year 1")))))))), /*#__PURE__*/
+    React.createElement("div", { className: "card p-4 space-y-4" }, /*#__PURE__*/
+    React.createElement("h3", { className: "font-semibold" }, "Allocation"), /*#__PURE__*/
+    React.createElement("p", { className: "text-sm text-slate-600" }, "Cash after the required minimum down payment: ", money0(extraCash)), /*#__PURE__*/
+    React.createElement("input", { type: "range", min: "0", max: "100", value: allocation, onChange: e => setAllocation(parseFloat(e.target.value)), disabled: extraCash <= 0, className: "w-full accent-slate-900" }), /*#__PURE__*/
+    React.createElement("div", { className: "text-sm" }, /*#__PURE__*/React.createElement("div", null, "Points: ", formatPct(pointsShare), " (", money0(scenarioC?.pointsCost ?? 0), ")"), /*#__PURE__*/React.createElement("div", null, "Extra down: ", formatPct(downShare), " (", money0(scenarioC?.extraDown ?? 0), ")")), /*#__PURE__*/
+    React.createElement("div", { className: "flex flex-wrap gap-2" }, presetButtons.map(btn => /*#__PURE__*/React.createElement("button", { key: btn.label, type: "button", className: (allocation === btn.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50') + ' border px-3 py-1 rounded-full text-xs', onClick: () => setAllocation(btn.value) }, btn.label))), /*#__PURE__*/
+    React.createElement("h4", { className: "text-sm font-semibold" }, "Scenarios (auto-calculated)"), /*#__PURE__*/
+    React.createElement("div", { className: "overflow-x-auto" }, /*#__PURE__*/
+    React.createElement("table", { className: "min-w-full text-xs" }, /*#__PURE__*/
+    React.createElement("thead", null, /*#__PURE__*/React.createElement("tr", null, /*#__PURE__*/React.createElement("th", { className: "text-left p-1" }, "Scenario"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Points"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Extra down"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Rate"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "Monthly"), /*#__PURE__*/React.createElement("th", { className: "text-right p-1" }, "NPV"))), /*#__PURE__*/
+    React.createElement("tbody", null,
+    scenarioA && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "A. Down"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioA.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioA.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioA.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioA.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioA.npv))),
+    scenarioB && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "B. Points"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioB.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioB.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioB.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioB.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioB.npv))),
+    scenarioC && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "C. Custom"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioC.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioC.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioC.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioC.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioC.npv))),
+    scenarioD && /*#__PURE__*/React.createElement("tr", { className: "border-t" }, /*#__PURE__*/React.createElement("td", { className: "p-1" }, "D. Optimized"), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, scenarioD.pointsPct.toFixed(2)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioD.extraDown)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, `${scenarioD.apr.toFixed(3)}%`), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioD.monthlyPayment)), /*#__PURE__*/React.createElement("td", { className: "text-right p-1" }, money0(scenarioD.npv))))))))),
+    insufficientCash ? /*#__PURE__*/React.createElement("div", { className: "mt-4 p-4 border rounded-xl bg-amber-50 text-amber-800 text-sm" }, "Insufficient cash for the minimum down payment.") : /*#__PURE__*/React.createElement("div", { className: "card p-4 space-y-4 mt-4" }, /*#__PURE__*/
+    React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, tiles.map(tile => /*#__PURE__*/React.createElement("div", { key: tile.label, className: "result" }, /*#__PURE__*/React.createElement("div", { className: "text-xs text-slate-500" }, tile.label), /*#__PURE__*/React.createElement("div", { className: "text-lg font-semibold" }, tile.value)))), /*#__PURE__*/
+    summary && /*#__PURE__*/React.createElement("p", { className: "text-sm text-slate-600" }, `At a ${horizonLabel}-year horizon, ${summary.label} has the lowest NPV, beating the next option by ${money0(summary.delta)}.`), /*#__PURE__*/
+    scenarioC && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500" }, "Effective APR includes the impact of points versus cash kept for down payment."), /*#__PURE__*/
+    pmiNote && /*#__PURE__*/React.createElement("p", { className: "text-xs text-slate-500" }, pmiNote), /*#__PURE__*/
+    React.createElement("div", { className: "grid lg:grid-cols-2 gap-4" }, /*#__PURE__*/React.createElement("canvas", { ref: lineCanvasRef, height: "180" }), /*#__PURE__*/React.createElement("canvas", { ref: barCanvasRef, height: "180" })), /*#__PURE__*/
+    React.createElement("ul", { className: "text-xs text-slate-500 space-y-1" }, /*#__PURE__*/React.createElement("li", null, "Assumes constant rate reduction per point unless edited."), /*#__PURE__*/React.createElement("li", null, "PMI drops when LTV \u2264 80% on scheduled amortization."), /*#__PURE__*/React.createElement("li", null, "Taxes toggles are modeling simplifications, not advice."))))));
 }
 
 /* ----------------------- Compound Interest ----------------------- */
@@ -1686,6 +2215,7 @@ function DataPanel({ onPlaceholders }) {
 const TABS = [
 { id: 'home', label: 'Home' },
 { id: 'mortgage', label: 'Mortgage' },
+{ id: 'downpoints', label: 'Down vs Points', title: 'Allocate cash between down payment and discount points' },
 { id: 'compound', label: 'Compound' },
 { id: 'retire', label: 'Retirement' },
 { id: 'debt', label: 'Debt Payoff' },
@@ -1699,6 +2229,7 @@ const TABS = [
 
 const CARDS = [
 { id: 'mortgage', title: 'Mortgage / Loan', why: 'Estimate payments and compare strategies like extra paydowns, refinancing, or lump sums.' },
+{ id: 'downpoints', title: 'Down Payment vs Points', why: 'Decide how much cash to allocate between discount points and extra down payment.' },
 { id: 'compound', title: 'Compound Interest', why: 'Project investment growth over time with recurring contributions.' },
 { id: 'retire', title: 'Retirement Goal', why: 'Figure out the monthly savings needed to reach a future nest egg.' },
 { id: 'debt', title: 'Debt Payoff', why: 'Simulate paying multiple debts using avalanche or snowball methods.' },
@@ -2026,7 +2557,7 @@ function App() {
     React.createElement("div", { className: "inline-flex gap-2 whitespace-nowrap pr-2" },
     TABS.map((t) => /*#__PURE__*/
     React.createElement("button", { key: t.id, role: "tab", "aria-selected": view === t.id ? 'true' : 'false',
-      onClick: () => setView(t.id),
+      onClick: () => setView(t.id), title: t.title,
       className: (view === t.id ? 'bg-slate-900 text-white ' : 'bg-white hover:bg-slate-50 ') + 'tab-btn border rounded-2xl px-3 py-2 transition-colors text-[13px] sm:text-sm' },
     t.label))))), /*#__PURE__*/
     React.createElement(FunFacts, { topic: view }), /*#__PURE__*/
@@ -2040,6 +2571,7 @@ function App() {
     React.createElement(ErrorBoundary, null,
     view === 'home' && /*#__PURE__*/React.createElement(Home, { onOpen: setView }),
     view === 'mortgage' && /*#__PURE__*/React.createElement(MortgageCalc, { placeholders: placeholders }),
+    view === 'downpoints' && /*#__PURE__*/React.createElement(DownVsPoints, null),
     view === 'compound' && /*#__PURE__*/React.createElement(CompoundCalc, null),
     view === 'retire' && /*#__PURE__*/React.createElement(RetirementGoal, null),
     view === 'debt' && /*#__PURE__*/React.createElement(DebtPayoff, null),
