@@ -204,6 +204,16 @@ function calcMonthlyPayment(principal, aprPct, termMonths) {
   return principal * (r * g) / (g - 1);
 }
 
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+function estimateClosingCosts(homePrice) {
+  if (!(homePrice > 0)) return 0;
+  const base = homePrice * 0.03;
+  const estimate = clamp(base, 12000, 15000);
+  const rounded = Math.round(estimate / 100) * 100;
+  return Number.isFinite(rounded) ? rounded : 0;
+}
+
 function buildDownVsPointsSchedule({ principal, aprPct, termMonths, pmiAnnualPct, homePrice }) {
   const rows = [];
   if (!(principal > 0) || !(termMonths > 0)) {
@@ -472,6 +482,7 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
   const [P, setP] = useState();
   const [APR, setAPR] = useState();
   const [Y, setY] = useState();
+  const [mortgageView, setMortgageView] = useState('standard');
 
   const principalPH = (_placeholders$loanAmo = placeholders === null || placeholders === void 0 ? void 0 : placeholders.loanAmountPH) !== null && _placeholders$loanAmo !== void 0 ? _placeholders$loanAmo : 350000;
   const aprPH = (_placeholders$mortgag = placeholders === null || placeholders === void 0 ? void 0 : placeholders.mortgageAPRPH) !== null && _placeholders$mortgag !== void 0 ? _placeholders$mortgag : 6.25;
@@ -651,8 +662,21 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
     } catch (err) {console.warn('Chart skipped:', err);}
   }, [principalX, aprX, res.N, res.payment, mode, extra, lumpAmt, lumpMonth, refi, yearsX, rates.m15, rates.arm5]);
 
+  const mortgageToggle = /*#__PURE__*/(
+    React.createElement("div", { className: "inline-flex border border-slate-200 rounded-full overflow-hidden text-xs" }, /*#__PURE__*/
+    React.createElement("button", { type: "button", className: `${mortgageView === 'standard' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'} px-3 py-1 transition-colors`, onClick: () => setMortgageView('standard') }, "Standard"), /*#__PURE__*/
+    React.createElement("button", { type: "button", className: `${mortgageView === 'downpoints' ? 'bg-slate-900 text-white' : 'bg-white text-slate-700 hover:bg-slate-50'} px-3 py-1 transition-colors`, onClick: () => setMortgageView('downpoints') }, "Points vs Down"))
+  );
+
+  if (mortgageView === 'downpoints') {
+    return /*#__PURE__*/(
+      React.createElement(Section, { title: "Mortgage / Loan", right: mortgageToggle }, /*#__PURE__*/
+      React.createElement(DownVsPoints, { embedded: true }))
+    );
+  }
+
   return /*#__PURE__*/(
-    React.createElement(Section, { title: "Mortgage / Loan" }, /*#__PURE__*/
+    React.createElement(Section, { title: "Mortgage / Loan", right: mortgageToggle }, /*#__PURE__*/
     React.createElement("div", { className: "grid sm:grid-cols-3 gap-3" }, /*#__PURE__*/
     React.createElement(Field, { label: "Principal" }, /*#__PURE__*/React.createElement(CurrencyInput, { value: P, onChange: setP, placeholder: money0(principalPH) })), /*#__PURE__*/
     React.createElement(Field, { label: "APR" }, /*#__PURE__*/React.createElement(PercentInput, { value: APR, onChange: setAPR, placeholder: String(aprPH) })), /*#__PURE__*/
@@ -712,11 +736,10 @@ function MortgageCalc({ placeholders }) {var _placeholders$loanAmo, _placeholder
 }
 
 /* ----------------------- Down Payment vs Points ----------------------- */
-function DownVsPoints() {
+function DownVsPoints({ embedded = false } = {}) {
   const [homePrice, setHomePrice] = useState();
   const [baseApr, setBaseApr] = useState();
   const [termYears, setTermYears] = useState();
-  const [cashAvailable, setCashAvailable] = useState();
   const [minDownPct, setMinDownPct] = useState();
   const [pmiAnnualPct, setPmiAnnualPct] = useState();
   const [rateReduction, setRateReduction] = useState();
@@ -731,7 +754,6 @@ function DownVsPoints() {
   const homePricePH = 350000;
   const baseAprPH = 6.25;
   const termYearsPH = 30;
-  const cashAvailablePH = 50000;
   const minDownPctPH = 5;
   const pmiAnnualPH = 0.5;
   const rateReductionPH = 0.25;
@@ -742,7 +764,6 @@ function DownVsPoints() {
   const homePriceX = homePrice ?? homePricePH;
   const baseAprX = baseApr ?? baseAprPH;
   const termYearsX = termYears ?? termYearsPH;
-  const cashAvailableX = cashAvailable ?? cashAvailablePH;
   const minDownPctX = minDownPct ?? minDownPctPH;
   const pmiAnnualPctX = pmiAnnualPct ?? pmiAnnualPH;
   const rateReductionX = rateReduction ?? rateReductionPH;
@@ -754,10 +775,12 @@ function DownVsPoints() {
   const horizonMonths = Math.min(termMonths, Math.max(1, Math.round(horizonYearsX * 12)));
   const requiredMinDown = Math.max(0, homePriceX * (minDownPctX / 100));
   const minDownCap = Math.min(homePriceX, requiredMinDown);
-  const extraCashRaw = cashAvailableX - minDownCap;
-  const extraCash = Math.max(0, extraCashRaw);
   const maxExtraDown = Math.max(0, homePriceX - minDownCap);
-  const insufficientCash = cashAvailableX + 1e-6 < minDownCap;
+  const closingCostEstimate = estimateClosingCosts(homePriceX);
+  const baseLoanAtMinDown = Math.max(0, homePriceX - minDownCap);
+  const pointsBudget = baseLoanAtMinDown * (maxPointsX / 100);
+  const extraCash = Math.max(0, Math.min(pointsBudget, maxExtraDown));
+  const insufficientCash = !(homePriceX > 0);
   const taxesEnabled = taxesOn && marginalTaxX > 0;
 
   useEffect(() => {
@@ -807,7 +830,7 @@ function DownVsPoints() {
       const apr = Math.max(0.1, baseAprX - pct * rateReductionX);
       const schedInfo = buildDownVsPointsSchedule({ principal: loan, aprPct: apr, termMonths, pmiAnnualPct: pmiAnnualPctX, homePrice: homePriceX });
       const schedule = schedInfo.rows;
-      const upfront = downPayment + pointsCost;
+      const upfront = downPayment + pointsCost + closingCostEstimate;
       const taxesConfig = { includeTaxes: taxesEnabled, marginalRate: marginalTaxX, pointsCost, termMonths, treatment: pointsTreatment };
       const summary = summarizeHorizon({ upfront, schedule, horizonMonths, taxes: taxesConfig });
       const effApr = solveEffectiveApr({ loanAmount: loan, pointsCost, schedule, horizonMonths });
@@ -823,6 +846,8 @@ function DownVsPoints() {
         monthlyPayment: schedule[0] ? schedule[0].total : calcMonthlyPayment(loan, apr, termMonths),
         pmiOffMonth: schedInfo.pmiOffMonth,
         upfront,
+        closingCosts: closingCostEstimate,
+        totalCashToClose: upfront,
         totalInterest: summary.totalInterest,
         totalInterestAfterTax: summary.totalInterestAfterTax,
         totalPaid: summary.totalPaid,
@@ -1001,235 +1026,256 @@ function DownVsPoints() {
   const interestSavedVsPoints = Math.max(0, pointsInterest - customInterest);
 
   const tiles = scenarioC ? [
+    { label: 'Total cash to close', value: money0(scenarioC.totalCashToClose) },
     { label: 'Monthly payment', value: money0(scenarioC.monthlyPayment) },
     { label: 'Interest to horizon', value: money0(customInterest) },
     { label: 'Total paid to horizon', value: money0(totalPaidMetric(scenarioC)) },
     { label: 'Breakeven for points', value: scenarioC.pointsPct > 0 ? (breakeven ? `${breakeven} mo` : '—') : '—' },
     { label: 'Interest saved vs all-down', value: interestSavedVsDown > 0 ? money0(interestSavedVsDown) : '—' },
-    { label: 'Interest saved vs all-points', value: interestSavedVsPoints > 0 ? money0(interestSavedVsPoints) : '—' },
-    { label: 'Effective APR to horizon', value: `${(scenarioC.effApr * 100).toFixed(2)}%` }
+    { label: 'Interest saved vs all-points', value: interestSavedVsPoints > 0 ? money0(interestSavedVsPoints) : '—' }
   ] : [];
 
   const pmiNote = scenarioC && pmiAnnualPctX > 0 ? (scenarioC.pmiOffMonth ? `PMI projected to drop in month ${scenarioC.pmiOffMonth}.` : 'PMI applies for the full horizon.') : null;
 
-  return (
-    <Section title="Down Payment vs Points — Cash Allocation Optimizer">
-      <div className="grid lg:grid-cols-2 gap-4">
-        <div className="card p-4 space-y-4">
-          <h3 className="font-semibold">Inputs</h3>
-          <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Home price">
-              <CurrencyInput value={homePrice} onChange={setHomePrice} placeholder={money0(homePricePH)} />
-            </Field>
-            <Field label="Base APR (before points)">
-              <PercentInput value={baseApr} onChange={setBaseApr} placeholder={String(baseAprPH)} />
-            </Field>
-            <Field label="Loan term">
-              <select
-                className="field"
-                value={termYears ?? termYearsPH}
-                onChange={e => setTermYears(parseInt(e.target.value, 10))}
-              >
-                <option value="30">30</option>
-                <option value="20">20</option>
-                <option value="15">15</option>
-              </select>
-            </Field>
-            <Field label="Cash available at closing">
-              <CurrencyInput value={cashAvailable} onChange={setCashAvailable} placeholder={money0(cashAvailablePH)} />
-            </Field>
-            <Field label="Minimum down %">
-              <PercentInput value={minDownPct} onChange={setMinDownPct} placeholder={String(minDownPctPH)} />
-            </Field>
-            <Field label="PMI annual rate" hint="Estimated annual cost of private mortgage insurance (e.g. 0.5%), applied until LTV ≤ 80%">
-              <PercentInput value={pmiAnnualPct} onChange={setPmiAnnualPct} placeholder={String(pmiAnnualPH)} />
-            </Field>
-            <Field label="Rate reduction per point">
-              <div className="space-y-1">
-                <PercentInput value={rateReduction} onChange={setRateReduction} placeholder={String(rateReductionPH)} />
-                <button type="button" className="text-xs underline" onClick={() => setShowCurve(s => !s)}>
-                  edit curve
-                </button>
-              </div>
-            </Field>
-            <Field label="Max points purchasable">
-              <NumberInput value={maxPoints} onChange={setMaxPoints} step="0.25" placeholder={String(maxPointsPH)} />
-            </Field>
-            <Field label="Horizon (years)">
-              <NumberInput value={horizonYears} onChange={setHorizonYears} step="0.5" placeholder={String(horizonYearsPH)} />
-            </Field>
-          </div>
-          {showCurve && (
-            <p className="text-xs text-slate-600">
-              Assumes a constant reduction per point. Adjust inputs to model your own pricing curve.
-            </p>
-          )}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Taxes</span>
-              <button
-                type="button"
-                className={`${taxesOn ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
-                onClick={() => setTaxesOn(t => !t)}
-              >
-                {taxesOn ? 'On' : 'Off'}
+  const content = (
+    <div className="grid lg:grid-cols-2 gap-4">
+      <div className="card p-4 space-y-4">
+        <h3 className="font-semibold">Inputs</h3>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <Field label="Home price">
+            <CurrencyInput value={homePrice} onChange={setHomePrice} placeholder={money0(homePricePH)} />
+          </Field>
+          <Field label="Base APR (before points)">
+            <PercentInput value={baseApr} onChange={setBaseApr} placeholder={String(baseAprPH)} />
+          </Field>
+          <Field label="Loan term">
+            <select
+              className="field"
+              value={termYears ?? termYearsPH}
+              onChange={e => setTermYears(parseInt(e.target.value, 10))}
+            >
+              <option value="30">30</option>
+              <option value="20">20</option>
+              <option value="15">15</option>
+            </select>
+          </Field>
+          <Field label="Minimum down %">
+            <PercentInput value={minDownPct} onChange={setMinDownPct} placeholder={String(minDownPctPH)} />
+          </Field>
+          <Field label="PMI annual rate" hint="Estimated annual cost of private mortgage insurance (e.g. 0.5%), applied until LTV ≤ 80%">
+            <PercentInput value={pmiAnnualPct} onChange={setPmiAnnualPct} placeholder={String(pmiAnnualPH)} />
+          </Field>
+          <Field label="Rate reduction per point">
+            <div className="space-y-1">
+              <PercentInput value={rateReduction} onChange={setRateReduction} placeholder={String(rateReductionPH)} />
+              <button type="button" className="text-xs underline" onClick={() => setShowCurve(s => !s)}>
+                edit curve
               </button>
             </div>
-            {taxesOn && (
-              <div className="grid sm:grid-cols-2 gap-3">
-                <Field label="Marginal tax rate">
-                  <PercentInput value={marginalTax} onChange={setMarginalTax} placeholder={String(marginalTaxPH)} />
-                </Field>
-                <Field label="Points tax treatment">
-                  <select
-                    className="field"
-                    value={pointsTreatment}
-                    onChange={e => setPointsTreatment(e.target.value)}
-                  >
-                    <option value="amortize">Amortize over loan</option>
-                    <option value="deduct">Deduct in year 1</option>
-                  </select>
-                </Field>
-              </div>
-            )}
-          </div>
+          </Field>
+          <Field label="Max points purchasable">
+            <NumberInput value={maxPoints} onChange={setMaxPoints} step="0.25" placeholder={String(maxPointsPH)} />
+          </Field>
+          <Field label="Horizon (years)">
+            <NumberInput value={horizonYears} onChange={setHorizonYears} step="0.5" placeholder={String(horizonYearsPH)} />
+          </Field>
         </div>
-        <div className="card p-4 space-y-4">
-          <h3 className="font-semibold">Allocation</h3>
+        {showCurve && (
+          <p className="text-xs text-slate-600">
+            Assumes a constant reduction per point. Adjust inputs to model your own pricing curve.
+          </p>
+        )}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Taxes</span>
+            <button
+              type="button"
+              className={`${taxesOn ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+              onClick={() => setTaxesOn(t => !t)}
+            >
+              {taxesOn ? 'On' : 'Off'}
+            </button>
+          </div>
+          {taxesOn && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <Field label="Marginal tax rate">
+                <PercentInput value={marginalTax} onChange={setMarginalTax} placeholder={String(marginalTaxPH)} />
+              </Field>
+              <Field label="Points tax treatment">
+                <select
+                  className="field"
+                  value={pointsTreatment}
+                  onChange={e => setPointsTreatment(e.target.value)}
+                >
+                  <option value="amortize">Amortize over loan</option>
+                  <option value="deduct">Deduct in year 1</option>
+                </select>
+              </Field>
+            </div>
+          )}
+        </div>
+        <div className="pt-2 space-y-2">
           <p className="text-sm text-slate-600">
-            Cash after the required minimum down payment: {money0(extraCash)}
+            Estimated closing costs (auto): {money0(closingCostEstimate)}
           </p>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={allocation}
-            onChange={e => setAllocation(parseFloat(e.target.value))}
-            disabled={extraCash <= 0}
-            className="w-full accent-slate-900"
-          />
-          <div className="text-sm">
-            <div>
-              Points: {formatPct(pointsShare)} ({money0(scenarioC?.pointsCost ?? 0)})
-            </div>
-            <div>
-              Extra down: {formatPct(downShare)} ({money0(scenarioC?.extraDown ?? 0)})
-            </div>
-          </div>
           <p className="text-xs text-slate-500">
-            Split the optional cash between discount points and additional down payment. Preset buttons apply common mixes like 50/50.
+            Uses a 3% estimate capped between $12k and $15k to approximate typical fees.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {presetButtons.map(btn => (
-              <button
-                key={btn.label}
-                type="button"
-                className={`${allocation === btn.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
-                onClick={() => setAllocation(Number(btn.value))}
-              >
-                {btn.label}
-              </button>
-            ))}
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold mt-2">Cumulative interest to horizon</h4>
+          <div className="mt-3">
+            <h4 className="text-sm font-semibold">Cumulative interest to horizon</h4>
             <canvas ref={lineCanvasRef} height="180" className="mt-2" />
           </div>
-          <h4 className="text-sm font-semibold">Scenarios (auto-calculated)</h4>
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-xs">
-              <thead>
-                <tr>
-                  <th className="text-left p-1">Scenario</th>
-                  <th className="text-right p-1">Points</th>
-                  <th className="text-right p-1">Extra down</th>
-                  <th className="text-right p-1">Rate</th>
-                  <th className="text-right p-1">Monthly</th>
-                  <th className="text-right p-1">Interest (horizon)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {scenarioA && (
-                  <tr className="border-t">
-                    <td className="p-1">A. Down</td>
-                    <td className="text-right p-1">{scenarioA.pointsPct.toFixed(2)}</td>
-                    <td className="text-right p-1">{money0(scenarioA.extraDown)}</td>
-                    <td className="text-right p-1">{`${scenarioA.apr.toFixed(3)}%`}</td>
-                    <td className="text-right p-1">{money0(scenarioA.monthlyPayment)}</td>
-                    <td className="text-right p-1">{money0(interestMetric(scenarioA))}</td>
-                  </tr>
-                )}
-                {scenarioB && (
-                  <tr className="border-t">
-                    <td className="p-1">B. Points</td>
-                    <td className="text-right p-1">{scenarioB.pointsPct.toFixed(2)}</td>
-                    <td className="text-right p-1">{money0(scenarioB.extraDown)}</td>
-                    <td className="text-right p-1">{`${scenarioB.apr.toFixed(3)}%`}</td>
-                    <td className="text-right p-1">{money0(scenarioB.monthlyPayment)}</td>
-                    <td className="text-right p-1">{money0(interestMetric(scenarioB))}</td>
-                  </tr>
-                )}
-                {scenarioC && (
-                  <tr className="border-t">
-                    <td className="p-1">C. Custom</td>
-                    <td className="text-right p-1">{scenarioC.pointsPct.toFixed(2)}</td>
-                    <td className="text-right p-1">{money0(scenarioC.extraDown)}</td>
-                    <td className="text-right p-1">{`${scenarioC.apr.toFixed(3)}%`}</td>
-                    <td className="text-right p-1">{money0(scenarioC.monthlyPayment)}</td>
-                    <td className="text-right p-1">{money0(interestMetric(scenarioC))}</td>
-                  </tr>
-                )}
-                {scenarioD && (
-                  <tr className="border-t">
-                    <td className="p-1">D. Optimized</td>
-                    <td className="text-right p-1">{scenarioD.pointsPct.toFixed(2)}</td>
-                    <td className="text-right p-1">{money0(scenarioD.extraDown)}</td>
-                    <td className="text-right p-1">{`${scenarioD.apr.toFixed(3)}%`}</td>
-                    <td className="text-right p-1">{money0(scenarioD.monthlyPayment)}</td>
-                    <td className="text-right p-1">{money0(interestMetric(scenarioD))}</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          {insufficientCash ? (
-            <div className="mt-4 p-4 border rounded-xl bg-amber-50 text-amber-800 text-sm">
-              Insufficient cash for the minimum down payment.
-            </div>
-          ) : (
-            <div className="card p-4 space-y-4 mt-4">
-              <div className="grid sm:grid-cols-3 gap-3">
-                {tiles.map(tile => (
-                  <div key={tile.label} className="result">
-                    <div className="text-xs text-slate-500">{tile.label}</div>
-                    <div className="text-lg font-semibold">{tile.value}</div>
-                  </div>
-                ))}
-              </div>
-              {summary && (
-                <p className="text-sm text-slate-600">
-                  {`At a ${horizonLabel}-year horizon, ${summary.label} produces the lowest interest cost, saving ${money0(summary.delta)} versus the next alternative.`}
-                </p>
-              )}
-              {scenarioC && (
-                <p className="text-xs text-slate-500">
-                  Interest savings assume all optional cash is applied to the loan (no outside investing).
-                </p>
-              )}
-              {pmiNote && <p className="text-xs text-slate-500">{pmiNote}</p>}
-              <div className="mt-4">
-                <h4 className="text-sm font-semibold">Interest comparison across strategies</h4>
-                <canvas ref={barCanvasRef} height="180" className="mt-2" />
-              </div>
-              <ul className="text-xs text-slate-500 space-y-1">
-                <li>Assumes constant rate reduction per point unless edited.</li>
-                <li>PMI drops when LTV ≤ 80% on scheduled amortization.</li>
-                <li>Taxes toggles are modeling simplifications, not advice.</li>
-              </ul>
-            </div>
-          )}
         </div>
       </div>
+      <div className="card p-4 space-y-4">
+        <h3 className="font-semibold">Allocation</h3>
+        <p className="text-sm text-slate-600">
+          Modeled optional cash (max discount points budget): {money0(extraCash)}
+        </p>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          value={allocation}
+          onChange={e => setAllocation(parseFloat(e.target.value))}
+          disabled={extraCash <= 0}
+          className="w-full accent-slate-900"
+        />
+        <div className="text-sm">
+          <div>
+            Points: {formatPct(pointsShare)} ({money0(scenarioC?.pointsCost ?? 0)})
+          </div>
+          <div>
+            Extra down: {formatPct(downShare)} ({money0(scenarioC?.extraDown ?? 0)})
+          </div>
+        </div>
+        <p className="text-xs text-slate-500">
+          Optional cash equals the maximum cost of buying discount points while meeting the minimum down payment. Adjust the slider to explore different mixes.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {presetButtons.map(btn => (
+            <button
+              key={btn.label}
+              type="button"
+              className={`${allocation === btn.value ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+              onClick={() => setAllocation(Number(btn.value))}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+        <h4 className="text-sm font-semibold">Scenarios (auto-calculated)</h4>
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-xs">
+            <thead>
+              <tr>
+                <th className="text-left p-1">Scenario</th>
+                <th className="text-right p-1">Points</th>
+                <th className="text-right p-1">Extra down</th>
+                <th className="text-right p-1">Rate</th>
+                <th className="text-right p-1">Monthly</th>
+                <th className="text-right p-1">Cash to close</th>
+                <th className="text-right p-1">Interest (horizon)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {scenarioA && (
+                <tr className="border-t">
+                  <td className="p-1">A. Down</td>
+                  <td className="text-right p-1">{scenarioA.pointsPct.toFixed(2)}</td>
+                  <td className="text-right p-1">{money0(scenarioA.extraDown)}</td>
+                  <td className="text-right p-1">{`${scenarioA.apr.toFixed(3)}%`}</td>
+                  <td className="text-right p-1">{money0(scenarioA.monthlyPayment)}</td>
+                  <td className="text-right p-1">{money0(scenarioA.totalCashToClose)}</td>
+                  <td className="text-right p-1">{money0(interestMetric(scenarioA))}</td>
+                </tr>
+              )}
+              {scenarioB && (
+                <tr className="border-t">
+                  <td className="p-1">B. Points</td>
+                  <td className="text-right p-1">{scenarioB.pointsPct.toFixed(2)}</td>
+                  <td className="text-right p-1">{money0(scenarioB.extraDown)}</td>
+                  <td className="text-right p-1">{`${scenarioB.apr.toFixed(3)}%`}</td>
+                  <td className="text-right p-1">{money0(scenarioB.monthlyPayment)}</td>
+                  <td className="text-right p-1">{money0(scenarioB.totalCashToClose)}</td>
+                  <td className="text-right p-1">{money0(interestMetric(scenarioB))}</td>
+                </tr>
+              )}
+              {scenarioC && (
+                <tr className="border-t">
+                  <td className="p-1">C. Custom</td>
+                  <td className="text-right p-1">{scenarioC.pointsPct.toFixed(2)}</td>
+                  <td className="text-right p-1">{money0(scenarioC.extraDown)}</td>
+                  <td className="text-right p-1">{`${scenarioC.apr.toFixed(3)}%`}</td>
+                  <td className="text-right p-1">{money0(scenarioC.monthlyPayment)}</td>
+                  <td className="text-right p-1">{money0(scenarioC.totalCashToClose)}</td>
+                  <td className="text-right p-1">{money0(interestMetric(scenarioC))}</td>
+                </tr>
+              )}
+              {scenarioD && (
+                <tr className="border-t">
+                  <td className="p-1">D. Optimized</td>
+                  <td className="text-right p-1">{scenarioD.pointsPct.toFixed(2)}</td>
+                  <td className="text-right p-1">{money0(scenarioD.extraDown)}</td>
+                  <td className="text-right p-1">{`${scenarioD.apr.toFixed(3)}%`}</td>
+                  <td className="text-right p-1">{money0(scenarioD.monthlyPayment)}</td>
+                  <td className="text-right p-1">{money0(scenarioD.totalCashToClose)}</td>
+                  <td className="text-right p-1">{money0(interestMetric(scenarioD))}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {insufficientCash ? (
+          <div className="mt-4 p-4 border rounded-xl bg-amber-50 text-amber-800 text-sm">
+            Enter a positive home price to analyze scenarios.
+          </div>
+        ) : (
+          <div className="card p-4 space-y-4 mt-4">
+            <div className="grid sm:grid-cols-3 gap-3">
+              {tiles.map(tile => (
+                <div key={tile.label} className="result">
+                  <div className="text-xs text-slate-500">{tile.label}</div>
+                  <div className="text-lg font-semibold">{tile.value}</div>
+                </div>
+              ))}
+            </div>
+            {summary && (
+              <p className="text-sm text-slate-600">
+                {`At a ${horizonLabel}-year horizon, ${summary.label} produces the lowest interest cost, saving ${money0(summary.delta)} versus the next alternative.`}
+              </p>
+            )}
+            {scenarioC && (
+              <p className="text-xs text-slate-500">
+                Interest savings assume all optional cash is applied to the loan (no outside investing).
+              </p>
+            )}
+            <p className="text-xs text-slate-500">
+              Total cash to close includes an estimated {money0(closingCostEstimate)} in closing costs.
+            </p>
+            {pmiNote && <p className="text-xs text-slate-500">{pmiNote}</p>}
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold">Interest comparison across strategies</h4>
+              <canvas ref={barCanvasRef} height="180" className="mt-2" />
+            </div>
+            <ul className="text-xs text-slate-500 space-y-1">
+              <li>Assumes constant rate reduction per point unless edited.</li>
+              <li>PMI drops when LTV ≤ 80% on scheduled amortization.</li>
+              <li>Taxes toggles are modeling simplifications, not advice.</li>
+            </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <Section title="Down Payment vs Points — Cash Allocation Optimizer">
+      {content}
     </Section>
   );
 
@@ -2390,9 +2436,8 @@ function DataPanel({ onPlaceholders }) {
 
 /* --------------------------- Landing + Tabs --------------------------- */
 const TABS = [
-{ id: 'home', label: 'Home' },
-{ id: 'mortgage', label: 'Mortgage' },
-{ id: 'downpoints', label: 'Down vs Points', title: 'Allocate cash between down payment and discount points' },
+  { id: 'home', label: 'Home' },
+  { id: 'mortgage', label: 'Mortgage' },
 { id: 'compound', label: 'Compound' },
 { id: 'retire', label: 'Retirement' },
 { id: 'debt', label: 'Debt Payoff' },
@@ -2405,8 +2450,7 @@ const TABS = [
 { id: 'data', label: 'Data' }];
 
 const CARDS = [
-{ id: 'mortgage', title: 'Mortgage / Loan', why: 'Estimate payments and compare strategies like extra paydowns, refinancing, or lump sums.' },
-{ id: 'downpoints', title: 'Down Payment vs Points', why: 'Decide how much cash to allocate between discount points and extra down payment.' },
+  { id: 'mortgage', title: 'Mortgage / Loan', why: 'Estimate payments and compare strategies like extra paydowns, refinancing, or lump sums.' },
 { id: 'compound', title: 'Compound Interest', why: 'Project investment growth over time with recurring contributions.' },
 { id: 'retire', title: 'Retirement Goal', why: 'Figure out the monthly savings needed to reach a future nest egg.' },
 { id: 'debt', title: 'Debt Payoff', why: 'Simulate paying multiple debts using avalanche or snowball methods.' },
@@ -2748,7 +2792,6 @@ function App() {
     React.createElement(ErrorBoundary, null,
     view === 'home' && /*#__PURE__*/React.createElement(Home, { onOpen: setView }),
     view === 'mortgage' && /*#__PURE__*/React.createElement(MortgageCalc, { placeholders: placeholders }),
-    view === 'downpoints' && /*#__PURE__*/React.createElement(DownVsPoints, null),
     view === 'compound' && /*#__PURE__*/React.createElement(CompoundCalc, null),
     view === 'retire' && /*#__PURE__*/React.createElement(RetirementGoal, null),
     view === 'debt' && /*#__PURE__*/React.createElement(DebtPayoff, null),
