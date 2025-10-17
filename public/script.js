@@ -750,6 +750,8 @@ function DownVsPoints({ embedded = false } = {}) {
   const [pointsTreatment, setPointsTreatment] = useState('amortize');
   const [allocation, setAllocation] = useState(50);
   const [showCurve, setShowCurve] = useState(false);
+  const [showRorGrowth, setShowRorGrowth] = useState(false);
+  const [rorRate, setRorRate] = useState();
 
   const homePricePH = 350000;
   const baseAprPH = 6.25;
@@ -760,6 +762,7 @@ function DownVsPoints({ embedded = false } = {}) {
   const maxPointsPH = 4;
   const horizonYearsPH = 7;
   const marginalTaxPH = 24;
+  const rorRatePH = 5;
 
   const homePriceX = homePrice ?? homePricePH;
   const baseAprX = baseApr ?? baseAprPH;
@@ -770,6 +773,7 @@ function DownVsPoints({ embedded = false } = {}) {
   const maxPointsX = maxPoints ?? maxPointsPH;
   const horizonYearsX = horizonYears ?? horizonYearsPH;
   const marginalTaxX = marginalTax ?? marginalTaxPH;
+  const rorRateX = rorRate ?? rorRatePH;
 
   const termMonths = Math.max(1, Math.round(termYearsX * 12));
   const horizonMonths = Math.min(termMonths, Math.max(1, Math.round(horizonYearsX * 12)));
@@ -789,6 +793,62 @@ function DownVsPoints({ embedded = false } = {}) {
 
   const analysis = useMemo(() => {
     if (insufficientCash) return null;
+
+    const buildBaselineScenario = () => {
+      const loan = Math.max(0, homePriceX - minDownCap);
+      const apr = Math.max(0.1, baseAprX);
+      const schedInfo = buildDownVsPointsSchedule({
+        principal: loan,
+        aprPct: apr,
+        termMonths,
+        pmiAnnualPct: pmiAnnualPctX,
+        homePrice: homePriceX
+      });
+      const schedule = schedInfo.rows;
+      const upfront = minDownCap + closingCostEstimate;
+      const taxesConfig = {
+        includeTaxes: taxesEnabled,
+        marginalRate: marginalTaxX,
+        pointsCost: 0,
+        termMonths,
+        treatment: pointsTreatment
+      };
+      const summary = summarizeHorizon({
+        upfront,
+        schedule,
+        horizonMonths,
+        taxes: taxesConfig
+      });
+      return {
+        pointsPct: 0,
+        pointsCost: 0,
+        extraDown: 0,
+        unusedCash: extraCash,
+        downPayment: minDownCap,
+        loanAmount: loan,
+        apr,
+        schedule,
+        monthlyPayment: schedule[0] ? schedule[0].total : calcMonthlyPayment(loan, apr, termMonths),
+        pmiOffMonth: schedInfo.pmiOffMonth,
+        upfront,
+        closingCosts: closingCostEstimate,
+        totalCashToClose: upfront,
+        totalInterest: summary.totalInterest,
+        totalInterestAfterTax: summary.totalInterestAfterTax,
+        totalPaid: summary.totalPaid,
+        totalPaidAfterTax: summary.totalPaidAfterTax,
+        cumulativeCost: summary.cumulativePaid,
+        cumulativeCostTax: summary.cumulativePaidAfterTax,
+        cumulativeInterest: summary.cumulativeInterest,
+        cumulativeInterestTax: summary.cumulativeInterestAfterTax,
+        cashSharePoints: 0,
+        cashShareDown: 0,
+        effApr: solveEffectiveApr({ loanAmount: loan, pointsCost: 0, schedule, horizonMonths }),
+        taxesIncluded: taxesEnabled
+      };
+    };
+
+    const baselineScenario = buildBaselineScenario();
 
     const scenarioCache = new Map();
 
@@ -921,6 +981,7 @@ function DownVsPoints({ embedded = false } = {}) {
     const nextBest = ranked[1];
 
     return {
+      baseline: baselineScenario,
       scenarioA,
       scenarioB,
       sliderScenario,
@@ -931,8 +992,9 @@ function DownVsPoints({ embedded = false } = {}) {
         delta: Math.max(0, nextBest.metric - best.metric)
       } : null
     };
-  }, [allocation, extraCash, homePriceX, minDownCap, maxExtraDown, maxPointsX, baseAprX, rateReductionX, termMonths, pmiAnnualPctX, horizonMonths, taxesEnabled, marginalTaxX, pointsTreatment, insufficientCash]);
+  }, [allocation, extraCash, homePriceX, minDownCap, maxExtraDown, maxPointsX, baseAprX, rateReductionX, termMonths, pmiAnnualPctX, horizonMonths, taxesEnabled, marginalTaxX, pointsTreatment, insufficientCash, closingCostEstimate]);
 
+  const baseline = analysis?.baseline;
   const scenarioA = analysis?.scenarioA;
   const scenarioB = analysis?.scenarioB;
   const scenarioC = analysis?.sliderScenario;
@@ -943,8 +1005,67 @@ function DownVsPoints({ embedded = false } = {}) {
   const lineChartRef = useRef(null);
   const barCanvasRef = useRef(null);
   const barChartRef = useRef(null);
+  const breakevenCanvasRef = useRef(null);
+  const breakevenChartRef = useRef(null);
 
   const formatPct = pct => `${(pct * 100).toFixed(0)}%`;
+
+  const breakevenData = useMemo(() => {
+    if (!scenarioC || !baseline || insufficientCash) return null;
+    const optionalCash = (scenarioC.pointsCost || 0) + (scenarioC.extraDown || 0);
+    if (!(optionalCash > 0)) return null;
+    const useTax = !!scenarioC.taxesIncluded;
+    const baseSeries = useTax ? baseline.cumulativeInterestTax : baseline.cumulativeInterest;
+    const customSeries = useTax ? scenarioC.cumulativeInterestTax : scenarioC.cumulativeInterest;
+    if (!baseSeries || !customSeries) return null;
+    const length = Math.min(baseSeries.length, customSeries.length);
+    if (!length) return null;
+    const labels = Array.from({ length }, (_, i) => i);
+    const savedSeries = [];
+    const costSeries = [];
+    let plainBreakEven = null;
+    let opportunityBreakEven = null;
+    const cappedRate = Math.max(-99.9, Math.min(rorRateX, 200));
+    const monthlyFactor = showRorGrowth ? Math.pow(1 + cappedRate / 100, 1 / 12) : 1;
+    let growthValue = optionalCash;
+    for (let i = 0; i < length; i++) {
+      const saved = Math.max(0, baseSeries[i] - customSeries[i]);
+      savedSeries.push(saved);
+      if (i === 0) {
+        growthValue = optionalCash;
+      } else if (showRorGrowth) {
+        growthValue *= monthlyFactor;
+      }
+      const costPoint = showRorGrowth ? growthValue : optionalCash;
+      costSeries.push(costPoint);
+      if (plainBreakEven === null && saved >= optionalCash - 1e-2) {
+        plainBreakEven = i;
+      }
+      if (opportunityBreakEven === null && saved >= costPoint - 1e-2) {
+        opportunityBreakEven = i;
+      }
+    }
+    if (!showRorGrowth) opportunityBreakEven = plainBreakEven;
+    return {
+      labels,
+      savedSeries,
+      costSeries,
+      optionalCash,
+      plainBreakEven,
+      opportunityBreakEven,
+      usesTax: useTax
+    };
+  }, [baseline, scenarioC, insufficientCash, rorRateX, showRorGrowth]);
+
+  const describeMonthCount = count => {
+    if (count === null || count === undefined) return 'Not reached within horizon';
+    if (count <= 0) return 'Immediate';
+    const years = count / 12;
+    if (years >= 1) {
+      return `${count} mo (${years.toFixed(1)} yrs)`;
+    }
+    return `${count} mo (${(count / 12).toFixed(1)} yrs)`;
+  };
 
   useEffect(() => {
     if (!scenarioC || insufficientCash) return;
@@ -1003,6 +1124,50 @@ function DownVsPoints({ embedded = false } = {}) {
       });
     } catch (err) { console.warn('Chart skipped:', err); }
   }, [scenarioA, scenarioB, scenarioC, scenarioD, insufficientCash]);
+
+  useEffect(() => {
+    if (breakevenChartRef.current) { try { breakevenChartRef.current.destroy(); } catch (_) {} breakevenChartRef.current = null; }
+    if (!breakevenData || insufficientCash) return;
+    if (!window.Chart || !breakevenCanvasRef.current) return;
+    try {
+      const ctx = breakevenCanvasRef.current.getContext('2d');
+      const label = showRorGrowth ? `Opportunity cost @ ${rorRateX.toFixed(2)}%` : 'Optional cash outlay';
+      breakevenChartRef.current = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: breakevenData.labels,
+          datasets: [
+            {
+              label: 'Interest saved vs. minimum down',
+              data: breakevenData.savedSeries,
+              borderColor: '#14b8a6',
+              backgroundColor: 'rgba(20,184,166,0.12)',
+              tension: 0.2,
+              pointRadius: 0
+            },
+            {
+              label,
+              data: breakevenData.costSeries,
+              borderColor: '#ef4444',
+              backgroundColor: 'transparent',
+              tension: 0,
+              borderDash: showRorGrowth ? [6, 3] : [4, 4],
+              pointRadius: 0
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          plugins: { legend: { display: true, position: 'bottom', labels: { usePointStyle: true, pointStyle: 'line' } } },
+          scales: {
+            y: { ticks: { callback: v => money0(v) }, title: { display: true, text: 'Dollars' } },
+            x: { title: { display: true, text: 'Months from closing' } }
+          }
+        }
+      });
+    } catch (err) { console.warn('Chart skipped:', err); }
+  }, [breakevenData, insufficientCash, rorRateX, showRorGrowth]);
 
   const presetButtons = [
     { label: 'All Extra → Down', value: 0 },
@@ -1115,6 +1280,43 @@ function DownVsPoints({ embedded = false } = {}) {
           )}
         </div>
         <div className="pt-2 space-y-2">
+          <div className="space-y-2">
+            <h4 className="text-sm font-semibold">Breakeven on optional cash</h4>
+            <p className="text-xs text-slate-500">
+              Compares interest savings from your chosen mix against the cost of applying optional cash beyond the minimum down payment.
+            </p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-slate-600">Opportunity cost (RoR)</span>
+              <button
+                type="button"
+                className={`${showRorGrowth ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-700 hover:bg-slate-50'} border px-3 py-1 rounded-full text-xs`}
+                onClick={() => setShowRorGrowth(v => !v)}
+              >
+                {showRorGrowth ? 'On' : 'Off'}
+              </button>
+            </div>
+            {showRorGrowth && (
+              <Field label="Annual rate of return">
+                <PercentInput value={rorRate} onChange={setRorRate} placeholder={String(rorRatePH)} />
+              </Field>
+            )}
+            {breakevenData ? (
+              <div className="space-y-1">
+                <p className="text-xs text-slate-600">Optional cash applied: {money0(breakevenData.optionalCash)}</p>
+                <p className="text-xs text-slate-600">
+                  Breakeven (interest saved ≥ cash): {describeMonthCount(breakevenData.plainBreakEven)}
+                </p>
+                {showRorGrowth && (
+                  <p className="text-xs text-slate-600">
+                    Including opportunity cost: {describeMonthCount(breakevenData.opportunityBreakEven)}
+                  </p>
+                )}
+                <canvas ref={breakevenCanvasRef} height="180" className="mt-2" />
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">Add optional cash toward down payment or points to view breakeven.</p>
+            )}
+          </div>
           <p className="text-sm text-slate-600">
             Estimated closing costs (auto): {money0(closingCostEstimate)}
           </p>
