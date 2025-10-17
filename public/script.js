@@ -1010,7 +1010,7 @@ function DownVsPoints({ embedded = false } = {}) {
 
   const formatPct = pct => `${(pct * 100).toFixed(0)}%`;
 
-  const breakevenData = useMemo(() => {
+  const breakevenBase = useMemo(() => {
     if (!scenarioC || !baseline || insufficientCash) return null;
     const optionalCash = (scenarioC.pointsCost || 0) + (scenarioC.extraDown || 0);
     if (!(optionalCash > 0)) return null;
@@ -1022,15 +1022,26 @@ function DownVsPoints({ embedded = false } = {}) {
     if (!length) return null;
     const labels = Array.from({ length }, (_, i) => i);
     const savedSeries = [];
-    const costSeries = [];
     let plainBreakEven = null;
-    let opportunityBreakEven = null;
-    const cappedRate = Math.max(-99.9, Math.min(rorRateX, 200));
-    const monthlyFactor = showRorGrowth ? Math.pow(1 + cappedRate / 100, 1 / 12) : 1;
-    let growthValue = optionalCash;
     for (let i = 0; i < length; i++) {
       const saved = Math.max(0, baseSeries[i] - customSeries[i]);
       savedSeries.push(saved);
+      if (plainBreakEven === null && saved >= optionalCash - 1e-2) {
+        plainBreakEven = i;
+      }
+    }
+    return { labels, savedSeries, optionalCash, plainBreakEven, usesTax: useTax };
+  }, [baseline, scenarioC, insufficientCash]);
+
+  const breakevenData = useMemo(() => {
+    if (!breakevenBase) return null;
+    const { labels, savedSeries, optionalCash, plainBreakEven, usesTax } = breakevenBase;
+    const cappedRate = Math.max(-99.9, Math.min(rorRateX, 200));
+    const monthlyFactor = showRorGrowth ? Math.pow(1 + cappedRate / 100, 1 / 12) : 1;
+    const costSeries = [];
+    let growthValue = optionalCash;
+    let opportunityBreakEven = null;
+    for (let i = 0; i < savedSeries.length; i++) {
       if (i === 0) {
         growthValue = optionalCash;
       } else if (showRorGrowth) {
@@ -1038,10 +1049,7 @@ function DownVsPoints({ embedded = false } = {}) {
       }
       const costPoint = showRorGrowth ? growthValue : optionalCash;
       costSeries.push(costPoint);
-      if (plainBreakEven === null && saved >= optionalCash - 1e-2) {
-        plainBreakEven = i;
-      }
-      if (opportunityBreakEven === null && saved >= costPoint - 1e-2) {
+      if (opportunityBreakEven === null && savedSeries[i] >= costPoint - 1e-2) {
         opportunityBreakEven = i;
       }
     }
@@ -1053,9 +1061,9 @@ function DownVsPoints({ embedded = false } = {}) {
       optionalCash,
       plainBreakEven,
       opportunityBreakEven,
-      usesTax: useTax
+      usesTax
     };
-  }, [baseline, scenarioC, insufficientCash, rorRateX, showRorGrowth]);
+  }, [breakevenBase, rorRateX, showRorGrowth]);
 
   const describeMonthCount = count => {
     if (count === null || count === undefined) return 'Not reached within horizon';
